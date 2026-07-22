@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   Settings, Menu, X, Sun, Moon, Circle, CalendarRange, Layers,
-  Plus, SlidersHorizontal, FolderPlus, ChevronLeft, ChevronDown, LogOut,
+  Plus, SlidersHorizontal, FolderPlus, ChevronLeft, ChevronDown, LogOut, KeyRound,
 } from "lucide-react";
 import { api, auth, setUnauthorizedHandler } from "./api";
 import { formatJalaliMonth, isoToJalali } from "./jalali";
@@ -10,6 +10,7 @@ import ProjectPage from "./components/ProjectPage.jsx";
 import WorkPage from "./components/WorkPage.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import Login from "./components/Login.jsx";
+import ChangePasswordModal from "./components/ChangePasswordModal.jsx";
 
 export default function App() {
   const [user, setUser] = useState(() => (auth.getToken() ? auth.getUser() : null));
@@ -26,6 +27,7 @@ export default function App() {
   const [mode, setMode] = useState({ type: "date" });   // {type:'date'} | {type:'template', id, label}
   const [homeTool, setHomeTool] = useState(null);        // null|'define'|'template'|'settings'
   const [actOpen, setActOpen] = useState(true);          // activities list collapsed/expanded
+  const [showChangePass, setShowChangePass] = useState(false);
   const popping = useRef(false);
 
   useEffect(() => {
@@ -189,12 +191,17 @@ export default function App() {
               <span className="sb-title">{user.username}</span>
               <span className="sb-badge">{isAdminUser ? "مدیریت" : "نمایش"}</span>
             </div>
+            <button className="sb-item" onClick={() => { setShowChangePass(true); setSidebar(false); }}>
+              <KeyRound size={16} className="sb-ic" /><span className="sb-title">تغییر رمز عبور</span>
+            </button>
             <button className="sb-item" onClick={logout}>
               <LogOut size={16} className="sb-ic" /><span className="sb-title">خروج</span>
             </button>
           </div>
         </div>
       </aside>
+
+      {showChangePass && <ChangePasswordModal onClose={() => setShowChangePass(false)} />}
 
       <ErrorBoundary
         key={view.name + ":" + (view.id || "") + ":" + (view.workId || "")}
