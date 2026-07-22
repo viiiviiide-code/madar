@@ -1,0 +1,25 @@
+# Node
+node_modules/
+npm-debug.log
+
+# Environment
+.env
+.env.*
+
+# Database
+database/*.db
+database/*.db-shm
+database/*.db-wal
+
+# Upload files
+uploads/
+
+# Build
+web/dist/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
