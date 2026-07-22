@@ -3,11 +3,57 @@ const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+
+// بارگذاری سبک .env (بدون نیاز به پکیج dotenv) — اگر server/.env وجود داشته باشد.
+(function loadEnvFile() {
+  const envPath = path.join(__dirname, ".env");
+  if (!fs.existsSync(envPath)) return;
+  fs.readFileSync(envPath, "utf8").split("\n").forEach((line) => {
+    const m = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+    if (!m) return;
+    const key = m[1];
+    let val = (m[2] || "").trim();
+    if (val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1);
+    if (val.startsWith("'") && val.endsWith("'")) val = val.slice(1, -1);
+    if (!(key in process.env)) process.env[key] = val;
+  });
+})();
+
 const db = require("./db");
+const { sign, requireAuth, requireAdmin } = require("./auth");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+/* ---------- auth ---------- */
+app.post("/api/login", (req, res) => {
+  const { username, password } = req.body || {};
+  const u = db.prepare("SELECT * FROM users WHERE username=?").get(String(username || "").trim());
+  if (!u || !db.verifyPassword(password, u.password_hash)) {
+    return res.status(401).json({ error: "نام کاربری یا رمز عبور اشتباه است" });
+  }
+  const token = sign({ id: u.id, username: u.username, role: u.role });
+  res.json({ token, username: u.username, role: u.role });
+});
+
+// همه چیز زیر /api از این به بعد نیاز به ورود دارد؛ لاگین از قبل تعریف شده و مستثناست.
+app.use("/api", requireAuth);
+
+app.get("/api/me", (req, res) => res.json(req.user));
+
+app.put("/api/account/password", (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+  const u = db.prepare("SELECT * FROM users WHERE id=?").get(req.user.id);
+  if (!u || !db.verifyPassword(currentPassword, u.password_hash)) {
+    return res.status(401).json({ error: "رمز فعلی اشتباه است" });
+  }
+  if (!newPassword || String(newPassword).length < 6) {
+    return res.status(400).json({ error: "رمز جدید باید حداقل ۶ کاراکتر باشد" });
+  }
+  db.prepare("UPDATE users SET password_hash=? WHERE id=?").run(db.hashPassword(newPassword), u.id);
+  res.json({ ok: true });
+});
 
 const UP = path.join(__dirname, "..", "uploads");
 if (!fs.existsSync(UP)) fs.mkdirSync(UP, { recursive: true });
@@ -27,7 +73,7 @@ const storage = multer.diskStorage({
   },
 });
 const upload = multer({ storage, limits: { fileSize: 200 * 1024 * 1024 } });
-app.post("/api/upload", upload.single("file"), (req, res) => {
+app.post("/api/upload", requireAdmin, upload.single("file"), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "no file" });
   res.json({ url: "/uploads/" + req.file.filename });
 });
@@ -76,7 +122,7 @@ app.get("/api/settings", (req, res) => {
   rows.forEach((r) => (o[r.key] = r.value));
   res.json(o);
 });
-app.put("/api/settings", (req, res) => {
+app.put("/api/settings", requireAdmin, (req, res) => {
   const up = db.prepare("INSERT OR REPLACE INTO settings (key,value) VALUES (?,?)");
   const tx = db.transaction((obj) => {
     Object.entries(obj).forEach(([k, v]) => up.run(k, String(v)));
@@ -88,7 +134,7 @@ app.put("/api/settings", (req, res) => {
 /* ---------- types & platforms ---------- */
 app.get("/api/types", (req, res) =>
   res.json(db.prepare("SELECT * FROM work_types ORDER BY id").all()));
-app.post("/api/types", (req, res) => {
+app.post("/api/types", requireAdmin, (req, res) => {
   const { key, label } = req.body;
   try {
     const r = db.prepare("INSERT INTO work_types (key,label) VALUES (?,?)").run(key, label);
@@ -97,18 +143,18 @@ app.post("/api/types", (req, res) => {
     res.status(400).json({ error: "نوع تکراری است" });
   }
 });
-app.delete("/api/types/:id", (req, res) => {
+app.delete("/api/types/:id", requireAdmin, (req, res) => {
   db.prepare("DELETE FROM work_types WHERE id=?").run(req.params.id);
   res.json({ ok: true });
 });
 
 app.get("/api/platforms", (req, res) =>
   res.json(db.prepare("SELECT * FROM platforms ORDER BY id").all()));
-app.post("/api/platforms", (req, res) => {
+app.post("/api/platforms", requireAdmin, (req, res) => {
   const r = db.prepare("INSERT INTO platforms (label) VALUES (?)").run(req.body.label);
   res.json(db.prepare("SELECT * FROM platforms WHERE id=?").get(r.lastInsertRowid));
 });
-app.delete("/api/platforms/:id", (req, res) => {
+app.delete("/api/platforms/:id", requireAdmin, (req, res) => {
   db.prepare("DELETE FROM work_platform_views WHERE platform_id=?").run(req.params.id);
   db.prepare("DELETE FROM platforms WHERE id=?").run(req.params.id);
   res.json({ ok: true });
@@ -147,14 +193,14 @@ app.get("/api/templates", (req, res) => {
   }));
   res.json(out);
 });
-app.post("/api/templates", (req, res) => {
+app.post("/api/templates", requireAdmin, (req, res) => {
   const b = req.body;
   const r = db.prepare(
     "INSERT INTO templates (label, from_date, to_date, sort_order, created_at) VALUES (?,?,?,?,?)"
   ).run(b.label || "تمپلیت جدید", b.from_date || null, b.to_date || null, b.sort_order ?? 0, new Date().toISOString());
   res.json(db.prepare("SELECT * FROM templates WHERE id=?").get(r.lastInsertRowid));
 });
-app.put("/api/templates/:id", (req, res) => {
+app.put("/api/templates/:id", requireAdmin, (req, res) => {
   const cur = db.prepare("SELECT * FROM templates WHERE id=?").get(req.params.id);
   if (!cur) return res.status(404).json({ error: "not found" });
   const b = { ...cur, ...req.body };
@@ -162,7 +208,7 @@ app.put("/api/templates/:id", (req, res) => {
     .run(b.label, b.from_date, b.to_date, b.sort_order, req.params.id);
   res.json(db.prepare("SELECT * FROM templates WHERE id=?").get(req.params.id));
 });
-app.delete("/api/templates/:id", (req, res) => {
+app.delete("/api/templates/:id", requireAdmin, (req, res) => {
   db.prepare("UPDATE projects SET template_id=NULL WHERE template_id=?").run(req.params.id);
   db.prepare("DELETE FROM templates WHERE id=?").run(req.params.id);
   res.json({ ok: true });
@@ -199,7 +245,7 @@ app.get("/api/projects/:id", (req, res) => {
   res.json(hydrateProject(p));
 });
 
-app.post("/api/projects", (req, res) => {
+app.post("/api/projects", requireAdmin, (req, res) => {
   const b = req.body;
   const r = db.prepare(
     `INSERT INTO projects (title,sub,start_date,teaser_url,node_x,node_y,node_size,node_font,node_bold,orbit,template_id,created_at)
@@ -212,7 +258,7 @@ app.post("/api/projects", (req, res) => {
   res.json(hydrateProject(db.prepare("SELECT * FROM projects WHERE id=?").get(r.lastInsertRowid)));
 });
 
-app.put("/api/projects/:id", (req, res) => {
+app.put("/api/projects/:id", requireAdmin, (req, res) => {
   const cur = db.prepare("SELECT * FROM projects WHERE id=?").get(req.params.id);
   if (!cur) return res.status(404).json({ error: "not found" });
   const b = { ...cur, ...req.body };
@@ -222,13 +268,13 @@ app.put("/api/projects/:id", (req, res) => {
   res.json(hydrateProject(db.prepare("SELECT * FROM projects WHERE id=?").get(req.params.id)));
 });
 
-app.delete("/api/projects/:id", (req, res) => {
+app.delete("/api/projects/:id", requireAdmin, (req, res) => {
   db.prepare("DELETE FROM projects WHERE id=?").run(req.params.id);
   res.json({ ok: true });
 });
 
 /* ---------- stats ---------- */
-app.put("/api/projects/:id/stats", (req, res) => {
+app.put("/api/projects/:id/stats", requireAdmin, (req, res) => {
   const pid = req.params.id;
   const items = req.body.stats || [];
   const tx = db.transaction(() => {
@@ -298,7 +344,7 @@ function saveMedia(workId, media) {
     ins.run(workId, m.url, m.kind || "image", i));
 }
 
-app.post("/api/works", (req, res) => {
+app.post("/api/works", requireAdmin, (req, res) => {
   const b = req.body;
   const tx = db.transaction(() => {
     // primary url = explicit url, else first media item
@@ -318,7 +364,7 @@ app.post("/api/works", (req, res) => {
   res.json(hydrateWork(db.prepare("SELECT * FROM works WHERE id=?").get(id)));
 });
 
-app.put("/api/works/:id", (req, res) => {
+app.put("/api/works/:id", requireAdmin, (req, res) => {
   const cur = db.prepare("SELECT * FROM works WHERE id=?").get(req.params.id);
   if (!cur) return res.status(404).json({ error: "not found" });
   const b = { ...cur, ...req.body };
@@ -339,7 +385,7 @@ app.put("/api/works/:id", (req, res) => {
   res.json(hydrateWork(db.prepare("SELECT * FROM works WHERE id=?").get(req.params.id)));
 });
 
-app.delete("/api/works/:id", (req, res) => {
+app.delete("/api/works/:id", requireAdmin, (req, res) => {
   db.prepare("DELETE FROM works WHERE id=?").run(req.params.id);
   res.json({ ok: true });
 });

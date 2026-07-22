@@ -1,5 +1,21 @@
 const Database = require("better-sqlite3");
 const path = require("path");
+const crypto = require("crypto");
+
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.scryptSync(String(password), salt, 64).toString("hex");
+  return `${salt}:${hash}`;
+}
+function verifyPassword(password, stored) {
+  const [salt, hash] = String(stored || "").split(":");
+  if (!salt || !hash) return false;
+  const check = crypto.scryptSync(String(password), salt, 64).toString("hex");
+  const a = Buffer.from(hash, "hex");
+  const b = Buffer.from(check, "hex");
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
 
 const DB_PATH = "/home/ubuntu/apps/madar/database/madar.db";
 const db = new Database(DB_PATH);
@@ -8,6 +24,14 @@ db.pragma("foreign_keys = ON");
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
+
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'viewer',   -- 'admin' | 'viewer'
+  created_at TEXT
+);
 
 CREATE TABLE IF NOT EXISTS work_types (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -100,6 +124,18 @@ function addCol(table, col, def) {
 addCol("projects", "node_font", "REAL DEFAULT 12");
 addCol("projects", "node_bold", "INTEGER DEFAULT 0");
 addCol("projects", "template_id", "INTEGER");
+
+/* ---------- seed users (independent of main seed flag, runs once) ---------- */
+const usersExist = db.prepare("SELECT COUNT(*) c FROM users").get().c;
+if (!usersExist) {
+  const insUser = db.prepare(
+    "INSERT INTO users (username,password_hash,role,created_at) VALUES (?,?,?,?)"
+  );
+  const now = new Date().toISOString();
+  insUser.run("admin", hashPassword("admin12345"), "admin", now);
+  insUser.run("user", hashPassword("user12345"), "viewer", now);
+  console.log("Default users created — admin/admin12345 (مدیریت) و user/user12345 (نمایش). لطفاً پس از اولین ورود رمزها را تغییر دهید.");
+}
 
 /* ---------- seed once ---------- */
 const seeded = db.prepare("SELECT value FROM settings WHERE key='seeded'").get();
@@ -216,3 +252,5 @@ if (!seeded) {
 }
 
 module.exports = db;
+module.exports.hashPassword = hashPassword;
+module.exports.verifyPassword = verifyPassword;

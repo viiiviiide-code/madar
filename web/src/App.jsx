@@ -1,28 +1,41 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   Settings, Menu, X, Sun, Moon, Circle, CalendarRange, Layers,
-  Plus, SlidersHorizontal, FolderPlus, ChevronLeft, ChevronDown,
+  Plus, SlidersHorizontal, FolderPlus, ChevronLeft, ChevronDown, LogOut,
 } from "lucide-react";
-import { api } from "./api";
+import { api, auth, setUnauthorizedHandler } from "./api";
 import { formatJalaliMonth, isoToJalali } from "./jalali";
 import Home from "./components/Home.jsx";
 import ProjectPage from "./components/ProjectPage.jsx";
 import WorkPage from "./components/WorkPage.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
+import Login from "./components/Login.jsx";
 
 export default function App() {
+  const [user, setUser] = useState(() => (auth.getToken() ? auth.getUser() : null));
   const [settings, setSettings] = useState(null);
   const [types, setTypes] = useState([]);
   const [platforms, setPlatforms] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [allProjects, setAllProjects] = useState([]);
   const [view, setView] = useState({ name: "home" });
-  const [admin, setAdmin] = useState(false);
+  const isAdminUser = user?.role === "admin";
+  const [adminView, setAdminView] = useState(true); // فقط برای کاربر مدیریت: پیش‌نمایش به‌صورت حالت نمایش
+  const admin = isAdminUser && adminView;
   const [sidebar, setSidebar] = useState(false);
   const [mode, setMode] = useState({ type: "date" });   // {type:'date'} | {type:'template', id, label}
   const [homeTool, setHomeTool] = useState(null);        // null|'define'|'template'|'settings'
   const [actOpen, setActOpen] = useState(true);          // activities list collapsed/expanded
   const popping = useRef(false);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => setUser(null));
+  }, []);
+
+  const logout = () => {
+    auth.clearSession();
+    setUser(null);
+  };
 
   const loadMeta = async () => {
     setTypes(await api.types());
@@ -32,17 +45,18 @@ export default function App() {
   const loadProjects = () => api.allProjects().then((p) => setAllProjects(Array.isArray(p) ? p : [])).catch(() => {});
 
   useEffect(() => {
+    if (!user) return;
     api.settings().then(setSettings);
     loadMeta(); loadTemplates(); loadProjects();
     window.history.replaceState({ name: "home" }, "");
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (!settings) return;
     document.documentElement.setAttribute("data-theme", settings.theme === "light" ? "light" : "dark");
   }, [settings?.theme]);
 
-  useEffect(() => { if (view.name === "home") { loadProjects(); loadTemplates(); } }, [view.name]);
+  useEffect(() => { if (user && view.name === "home") { loadProjects(); loadTemplates(); } }, [view.name, user]);
 
   useEffect(() => {
     const onPop = (e) => { popping.current = true; setView(e.state || { name: "home" }); };
@@ -67,6 +81,7 @@ export default function App() {
   const openTool = (tool) => { setHomeTool(tool); setSidebar(false); go({ name: "home" }); };
   const openActivity = (p) => { setSidebar(false); go({ name: "project", id: p.id }); };
 
+  if (!user) return <Login onLogin={setUser} />;
   if (!settings) return <div className="app loading">در حال بارگذاری…</div>;
   const theme = settings.theme === "light" ? "light" : "dark";
 
@@ -142,27 +157,41 @@ export default function App() {
             )}
           </div>
 
-          {/* admin */}
-          <div className="sb-section sb-admin">
-            <div className="sb-section-t">مدیریت</div>
-            <button className={`sb-item toggle ${admin ? "on" : ""}`} onClick={() => setAdmin((v) => !v)}>
-              <Settings size={16} className="sb-ic" />
-              <span className="sb-title">حالت مدیریت</span>
-              <span className={`sb-switch ${admin ? "on" : ""}`}><span /></span>
+          {/* admin — فقط برای کاربری که با حساب مدیریت وارد شده نمایش داده می‌شود */}
+          {isAdminUser && (
+            <div className="sb-section sb-admin">
+              <div className="sb-section-t">مدیریت</div>
+              <button className={`sb-item toggle ${admin ? "on" : ""}`} onClick={() => setAdminView((v) => !v)}>
+                <Settings size={16} className="sb-ic" />
+                <span className="sb-title">حالت مدیریت</span>
+                <span className={`sb-switch ${admin ? "on" : ""}`}><span /></span>
+              </button>
+              {admin && (
+                <>
+                  <button className="sb-item" onClick={() => openTool("define")}>
+                    <Plus size={16} className="sb-ic" /><span className="sb-title">تعریف فعالیت</span>
+                  </button>
+                  <button className="sb-item" onClick={() => openTool("template")}>
+                    <FolderPlus size={16} className="sb-ic" /><span className="sb-title">تعریف / ویرایش تمپلیت</span>
+                  </button>
+                  <button className="sb-item" onClick={() => openTool("settings")}>
+                    <SlidersHorizontal size={16} className="sb-ic" /><span className="sb-title">تنظیمات نمایش</span>
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* حساب کاربری */}
+          <div className="sb-section">
+            <div className="sb-section-t">حساب کاربری</div>
+            <div className="sb-item sb-account">
+              <span className="sb-title">{user.username}</span>
+              <span className="sb-badge">{isAdminUser ? "مدیریت" : "نمایش"}</span>
+            </div>
+            <button className="sb-item" onClick={logout}>
+              <LogOut size={16} className="sb-ic" /><span className="sb-title">خروج</span>
             </button>
-            {admin && (
-              <>
-                <button className="sb-item" onClick={() => openTool("define")}>
-                  <Plus size={16} className="sb-ic" /><span className="sb-title">تعریف فعالیت</span>
-                </button>
-                <button className="sb-item" onClick={() => openTool("template")}>
-                  <FolderPlus size={16} className="sb-ic" /><span className="sb-title">تعریف / ویرایش تمپلیت</span>
-                </button>
-                <button className="sb-item" onClick={() => openTool("settings")}>
-                  <SlidersHorizontal size={16} className="sb-ic" /><span className="sb-title">تنظیمات نمایش</span>
-                </button>
-              </>
-            )}
           </div>
         </div>
       </aside>
