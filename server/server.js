@@ -4,22 +4,33 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
-<<<<<<< HEAD
-=======
-// بارگذاری سبک .env (بدون نیاز به پکیج dotenv) — اگر server/.env وجود داشته باشد.
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
 (function loadEnvFile() {
   const envPath = path.join(__dirname, ".env");
   if (!fs.existsSync(envPath)) return;
-  fs.readFileSync(envPath, "utf8").split("\n").forEach((line) => {
-    const m = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
-    if (!m) return;
-    const key = m[1];
-    let val = (m[2] || "").trim();
-    if (val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1);
-    if (val.startsWith("'") && val.endsWith("'")) val = val.slice(1, -1);
-    if (!(key in process.env)) process.env[key] = val;
-  });
+
+  fs.readFileSync(envPath, "utf8")
+    .split(/\r?\n/) // پشتیبانی همزمان از خطوط ویندوز (\r\n) و لینوکس/مک (\n)
+    .forEach((line) => {
+      // نادیده گرفتن خطوط خالی و کامنت‌ها
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) return;
+
+      const m = trimmed.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+      if (!m) return;
+
+      const key = m[1];
+      let val = (m[2] || "").trim();
+
+      // حذف کوتیشن دوتایی ("...") یا تکی ('...') از ابتدا و انتهای مقدار
+      if (
+        (val.startsWith('"') && val.endsWith('"')) ||
+        (val.startsWith("'") && val.endsWith("'"))
+      ) {
+        val = val.slice(1, -1);
+      }
+
+      if (!(key in process.env)) process.env[key] = val;
+    });
 })();
 
 const db = require("./db");
@@ -40,10 +51,6 @@ app.post("/api/login", (req, res) => {
   res.json({ token, username: u.username, role: u.role });
 });
 
-<<<<<<< HEAD
-=======
-// همه چیز زیر /api از این به بعد نیاز به ورود دارد؛ لاگین از قبل تعریف شده و مستثناست.
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
 app.use("/api", requireAuth);
 
 app.get("/api/me", (req, res) => res.json(req.user));
@@ -65,10 +72,6 @@ const UP = path.join(__dirname, "..", "uploads");
 if (!fs.existsSync(UP)) fs.mkdirSync(UP, { recursive: true });
 app.use("/uploads", express.static(UP, {
   setHeaders: (res) => {
-<<<<<<< HEAD
-=======
-    // hint browsers/download-managers to play inline rather than download
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
     res.setHeader("Content-Disposition", "inline");
   },
 }));
@@ -92,7 +95,6 @@ const totalViews = (workId) =>
   db.prepare("SELECT COALESCE(SUM(views),0) t FROM work_platform_views WHERE work_id=?")
     .get(workId).t;
 
-<<<<<<< HEAD
 const totalLikes = (workId) =>
   db.prepare("SELECT COALESCE(SUM(likes_count),0) t FROM work_platform_views WHERE work_id=?")
     .get(workId).t;
@@ -101,18 +103,12 @@ const totalComments = (workId) =>
   db.prepare("SELECT COALESCE(SUM(comments_count),0) t FROM work_platform_views WHERE work_id=?")
     .get(workId).t;
 
-=======
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
 const keywordsOf = (workId) =>
   db.prepare("SELECT text FROM work_keywords WHERE work_id=?").all(workId).map((r) => r.text);
 
 const platformViewsOf = (workId) =>
   db.prepare(
-<<<<<<< HEAD
     `SELECT pv.platform_id, p.label, pv.views, pv.likes_count, pv.comments_count, pv.description
-=======
-    `SELECT pv.platform_id, p.label, pv.views
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
      FROM work_platform_views pv JOIN platforms p ON p.id=pv.platform_id
      WHERE pv.work_id=?`
   ).all(workId);
@@ -123,7 +119,6 @@ const mediaOf = (workId) =>
 
 function hydrateWork(w) {
   if (!w) return w;
-<<<<<<< HEAD
   const pViews = platformViewsOf(w.id);
   return {
     ...w,
@@ -132,13 +127,6 @@ function hydrateWork(w) {
     totalViews: totalViews(w.id) || (w.views_count || 0),
     totalLikes: totalLikes(w.id) || (w.likes_count || 0),
     totalComments: totalComments(w.id) || (w.comments_count || 0),
-=======
-  return {
-    ...w,
-    keywords: keywordsOf(w.id),
-    platformViews: platformViewsOf(w.id),
-    totalViews: totalViews(w.id),
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
     media: mediaOf(w.id),
   };
 }
@@ -195,11 +183,7 @@ app.delete("/api/platforms/:id", requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-<<<<<<< HEAD
 /* ---------- autocompletes ---------- */
-=======
-/* ---------- keyword autocomplete ---------- */
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
 app.get("/api/keywords", (req, res) => {
   const prefix = (req.query.prefix || "").trim();
   if (!prefix) return res.json([]);
@@ -209,15 +193,11 @@ app.get("/api/keywords", (req, res) => {
   res.json(rows.map((r) => r.text));
 });
 
-<<<<<<< HEAD
 app.get("/api/stats/suggest-titles", (req, res) => {
   const rows = db.prepare("SELECT DISTINCT label FROM stats WHERE label IS NOT NULL AND TRIM(label)<>''").all();
   res.json(rows.map((r) => r.label));
 });
 
-=======
-/* distinct previously-used values for a given work field (axis | campaign) */
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
 app.get("/api/field-values", (req, res) => {
   const field = String(req.query.field || "");
   const allowed = { axis: "axis", campaign: "campaign" };
@@ -231,11 +211,7 @@ app.get("/api/field-values", (req, res) => {
   res.json(rows.map((r) => r.v));
 });
 
-<<<<<<< HEAD
 /* ---------- templates ---------- */
-=======
-/* ---------- templates (cores) ---------- */
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
 app.get("/api/templates", (req, res) => {
   const rows = db.prepare("SELECT * FROM templates ORDER BY sort_order, id").all();
   const out = rows.map((t) => ({
@@ -244,7 +220,6 @@ app.get("/api/templates", (req, res) => {
   }));
   res.json(out);
 });
-<<<<<<< HEAD
 
 app.post("/api/templates", requireAdmin, (req, res) => {
   const b = req.body;
@@ -262,42 +237,22 @@ app.post("/api/templates", requireAdmin, (req, res) => {
   res.json(db.prepare("SELECT * FROM templates WHERE id=?").get(r.lastInsertRowid));
 });
 
-=======
-app.post("/api/templates", requireAdmin, (req, res) => {
-  const b = req.body;
-  const r = db.prepare(
-    "INSERT INTO templates (label, from_date, to_date, sort_order, created_at) VALUES (?,?,?,?,?)"
-  ).run(b.label || "تمپلیت جدید", b.from_date || null, b.to_date || null, b.sort_order ?? 0, new Date().toISOString());
-  res.json(db.prepare("SELECT * FROM templates WHERE id=?").get(r.lastInsertRowid));
-});
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
 app.put("/api/templates/:id", requireAdmin, (req, res) => {
   const cur = db.prepare("SELECT * FROM templates WHERE id=?").get(req.params.id);
   if (!cur) return res.status(404).json({ error: "not found" });
   const b = { ...cur, ...req.body };
-<<<<<<< HEAD
   db.prepare("UPDATE templates SET label=?, from_date=?, to_date=?, sort_order=?, cover_theme=?, font_family=? WHERE id=?")
     .run(b.label, b.from_date, b.to_date, b.sort_order, b.cover_theme, b.font_family, req.params.id);
   res.json(db.prepare("SELECT * FROM templates WHERE id=?").get(req.params.id));
 });
 
-=======
-  db.prepare("UPDATE templates SET label=?, from_date=?, to_date=?, sort_order=? WHERE id=?")
-    .run(b.label, b.from_date, b.to_date, b.sort_order, req.params.id);
-  res.json(db.prepare("SELECT * FROM templates WHERE id=?").get(req.params.id));
-});
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
 app.delete("/api/templates/:id", requireAdmin, (req, res) => {
   db.prepare("UPDATE projects SET template_id=NULL WHERE template_id=?").run(req.params.id);
   db.prepare("DELETE FROM templates WHERE id=?").run(req.params.id);
   res.json({ ok: true });
 });
 
-<<<<<<< HEAD
 /* ---------- projects & transfer ---------- */
-=======
-/* ---------- projects ---------- */
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
 app.get("/api/projects", (req, res) => {
   const { from, to, templateId } = req.query;
   let rows;
@@ -318,11 +273,7 @@ app.get("/api/projects", (req, res) => {
 });
 
 app.get("/api/projects/all", (req, res) => {
-<<<<<<< HEAD
   const rows = db.prepare("SELECT id,title,sub,start_date,end_date,template_id FROM projects ORDER BY start_date").all();
-=======
-  const rows = db.prepare("SELECT id,title,sub,start_date,template_id FROM projects ORDER BY start_date").all();
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
   res.json(rows);
 });
 
@@ -335,17 +286,10 @@ app.get("/api/projects/:id", (req, res) => {
 app.post("/api/projects", requireAdmin, (req, res) => {
   const b = req.body;
   const r = db.prepare(
-<<<<<<< HEAD
     `INSERT INTO projects (title,sub,start_date,end_date,teaser_url,node_x,node_y,node_size,node_font,node_bold,orbit,template_id,created_at)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
   ).run(
     b.title || "فعالیت جدید", b.sub || "", b.start_date || null, b.end_date || null, b.teaser_url || null,
-=======
-    `INSERT INTO projects (title,sub,start_date,teaser_url,node_x,node_y,node_size,node_font,node_bold,orbit,template_id,created_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
-  ).run(
-    b.title || "فعالیت جدید", b.sub || "", b.start_date || null, b.teaser_url || null,
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
     b.node_x ?? 50, b.node_y ?? 35, b.node_size ?? 56, b.node_font ?? 12, b.node_bold ?? 0,
     b.orbit ?? 1, b.template_id ?? null, new Date().toISOString()
   );
@@ -357,13 +301,8 @@ app.put("/api/projects/:id", requireAdmin, (req, res) => {
   if (!cur) return res.status(404).json({ error: "not found" });
   const b = { ...cur, ...req.body };
   db.prepare(
-<<<<<<< HEAD
     `UPDATE projects SET title=?,sub=?,start_date=?,end_date=?,teaser_url=?,node_x=?,node_y=?,node_size=?,node_font=?,node_bold=?,orbit=?,template_id=? WHERE id=?`
   ).run(b.title, b.sub, b.start_date, b.end_date, b.teaser_url, b.node_x, b.node_y, b.node_size, b.node_font, b.node_bold, b.orbit, b.template_id ?? null, req.params.id);
-=======
-    `UPDATE projects SET title=?,sub=?,start_date=?,teaser_url=?,node_x=?,node_y=?,node_size=?,node_font=?,node_bold=?,orbit=?,template_id=? WHERE id=?`
-  ).run(b.title, b.sub, b.start_date, b.teaser_url, b.node_x, b.node_y, b.node_size, b.node_font, b.node_bold, b.orbit, b.template_id ?? null, req.params.id);
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
   res.json(hydrateProject(db.prepare("SELECT * FROM projects WHERE id=?").get(req.params.id)));
 });
 
@@ -372,7 +311,6 @@ app.delete("/api/projects/:id", requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-<<<<<<< HEAD
 /* کپی / انتقال فعالیت به تمپلیت جدید یا موجود */
 app.post("/api/projects/:id/transfer", requireAdmin, (req, res) => {
   const { id } = req.params;
@@ -447,8 +385,6 @@ app.post("/api/projects/:id/transfer", requireAdmin, (req, res) => {
   }
 });
 
-=======
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
 /* ---------- stats ---------- */
 app.put("/api/projects/:id/stats", requireAdmin, (req, res) => {
   const pid = req.params.id;
@@ -464,20 +400,11 @@ app.put("/api/projects/:id/stats", requireAdmin, (req, res) => {
 
 /* ---------- works ---------- */
 app.get("/api/works", (req, res) => {
-<<<<<<< HEAD
   const { projectId, type, q, keyword, from, to, sort, featuredOnly } = req.query;
-=======
-  const { projectId, type, q, keyword, from, to, sort } = req.query;
-  // unified: q searches text fields AND keywords; legacy keyword param also supported
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
   const unifiedQ = q || keyword || "";
 
   let sql, args = [];
   if (unifiedQ) {
-<<<<<<< HEAD
-=======
-    // LEFT JOIN keywords so we can match either text fields OR keyword
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
     sql = "SELECT DISTINCT w.* FROM works w LEFT JOIN work_keywords k ON k.work_id=w.id";
   } else {
     sql = "SELECT DISTINCT w.* FROM works w";
@@ -485,10 +412,7 @@ app.get("/api/works", (req, res) => {
   const where = [];
   if (projectId) { where.push("w.project_id=?"); args.push(projectId); }
   if (type && type !== "all") { where.push("w.type=?"); args.push(type); }
-<<<<<<< HEAD
   if (featuredOnly === "true" || featuredOnly === "1") { where.push("w.is_featured=1"); }
-=======
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
   if (from) { where.push("w.event_date>=?"); args.push(from); }
   if (to)   { where.push("w.event_date<=?"); args.push(to); }
   if (unifiedQ) {
@@ -518,7 +442,6 @@ function saveKeywords(workId, keywords) {
   (keywords || []).map((k) => String(k).trim()).filter(Boolean)
     .forEach((k) => ins.run(workId, k));
 }
-<<<<<<< HEAD
 
 function savePlatformViews(workId, platformViews) {
   db.prepare("DELETE FROM work_platform_views WHERE work_id=?").run(workId);
@@ -537,14 +460,6 @@ function savePlatformViews(workId, platformViews) {
   );
 }
 
-=======
-function savePlatformViews(workId, platformViews) {
-  db.prepare("DELETE FROM work_platform_views WHERE work_id=?").run(workId);
-  const ins = db.prepare("INSERT INTO work_platform_views (work_id,platform_id,views) VALUES (?,?,?)");
-  (platformViews || []).forEach((pv) =>
-    ins.run(workId, pv.platform_id, Number(pv.views) || 0));
-}
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
 function saveMedia(workId, media) {
   db.prepare("DELETE FROM work_media WHERE work_id=?").run(workId);
   const ins = db.prepare("INSERT INTO work_media (work_id,url,kind,sort_order) VALUES (?,?,?,?)");
@@ -555,7 +470,6 @@ function saveMedia(workId, media) {
 app.post("/api/works", requireAdmin, (req, res) => {
   const b = req.body;
   const tx = db.transaction(() => {
-<<<<<<< HEAD
     const primaryUrl = b.url || (Array.isArray(b.media) && b.media[0] ? b.media[0].url : null);
     const r = db.prepare(
       `INSERT INTO works (project_id,type,title,descr,axis,campaign,event_date,url,media_type,external_url,is_featured,likes_count,comments_count,created_at)
@@ -565,15 +479,6 @@ app.post("/api/works", requireAdmin, (req, res) => {
       b.event_date || null, primaryUrl, b.media_type || "file", b.external_url || null,
       b.is_featured ? 1 : 0, b.likes_count || 0, b.comments_count || 0, new Date().toISOString()
     );
-=======
-    // primary url = explicit url, else first media item
-    const primaryUrl = b.url || (Array.isArray(b.media) && b.media[0] ? b.media[0].url : null);
-    const r = db.prepare(
-      `INSERT INTO works (project_id,type,title,descr,axis,campaign,event_date,url,created_at)
-       VALUES (?,?,?,?,?,?,?,?,?)`
-    ).run(b.project_id, b.type, b.title, b.descr || "", b.axis || "", b.campaign || "",
-      b.event_date || null, primaryUrl, new Date().toISOString());
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
     const id = r.lastInsertRowid;
     saveKeywords(id, b.keywords);
     savePlatformViews(id, b.platformViews);
@@ -589,35 +494,22 @@ app.put("/api/works/:id", requireAdmin, (req, res) => {
   if (!cur) return res.status(404).json({ error: "not found" });
   const b = { ...cur, ...req.body };
   const tx = db.transaction(() => {
-<<<<<<< HEAD
-=======
-    // keep url in sync with first media item when media provided
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
     let url = b.url;
     if ("media" in req.body) {
       url = (Array.isArray(b.media) && b.media[0]) ? b.media[0].url : (b.url || null);
     }
     db.prepare(
-<<<<<<< HEAD
       `UPDATE works SET type=?,title=?,descr=?,axis=?,campaign=?,event_date=?,url=?,media_type=?,external_url=?,is_featured=?,likes_count=?,comments_count=? WHERE id=?`
     ).run(
       b.type, b.title, b.descr, b.axis, b.campaign, b.event_date, url,
       b.media_type, b.external_url, b.is_featured ? 1 : 0, b.likes_count, b.comments_count, req.params.id
     );
-=======
-      `UPDATE works SET type=?,title=?,descr=?,axis=?,campaign=?,event_date=?,url=? WHERE id=?`
-    ).run(b.type, b.title, b.descr, b.axis, b.campaign, b.event_date, url, req.params.id);
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
     if ("keywords" in req.body) saveKeywords(req.params.id, b.keywords);
     if ("platformViews" in req.body) savePlatformViews(req.params.id, b.platformViews);
     if ("media" in req.body) saveMedia(req.params.id, b.media);
   });
   tx();
-<<<<<<< HEAD
   res.json(hydrateWork(db.prepare("SELECT * FROM works WHERE id=?").get(id)));
-=======
-  res.json(hydrateWork(db.prepare("SELECT * FROM works WHERE id=?").get(req.params.id)));
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
 });
 
 app.delete("/api/works/:id", requireAdmin, (req, res) => {
@@ -625,11 +517,7 @@ app.delete("/api/works/:id", requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-<<<<<<< HEAD
 /* similar works */
-=======
-/* similar works: shares >=1 keyword (OR), ranked by shared count */
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
 app.get("/api/works/:id/similar", (req, res) => {
   const kws = keywordsOf(req.params.id);
   if (!kws.length) return res.json([]);
@@ -644,8 +532,4 @@ app.get("/api/works/:id/similar", (req, res) => {
 });
 
 const PORT = process.env.PORT || 4000;
-<<<<<<< HEAD
 app.listen(PORT, () => console.log(`Madar API on http://localhost:${PORT}`));
-=======
-app.listen(PORT, () => console.log(`Madar API on http://localhost:${PORT}`));
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
