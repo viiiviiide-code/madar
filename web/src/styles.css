@@ -947,3 +947,53 @@ textarea.ed{min-height:70px;resize:vertical}
 .work-stage:fullscreen .gal-nav{width:54px;height:54px}
 .work-stage:fullscreen .gal-prev{right:32px}
 .work-stage:fullscreen .gal-next{left:32px}
+<<<<<<< HEAD
+=======
+
+/* ---------- login ---------- */
+.login-screen{
+  min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;
+}
+.login-card{
+  width:100%;max-width:380px;background:var(--panel);border:1px solid var(--line);
+  border-radius:18px;padding:32px 28px;display:flex;flex-direction:column;gap:6px;
+  box-shadow:0 20px 60px rgba(0,0,0,.25);
+}
+.login-brand{display:flex;align-items:center;gap:11px;margin-bottom:18px}
+.login-brand b{font-weight:900;font-size:19px;display:block;line-height:1.2}
+.login-brand em{font-style:normal;color:var(--muted);font-size:12.5px}
+.login-title{font-size:17px;font-weight:800;margin-bottom:2px}
+.login-sub{color:var(--muted);font-size:13px;margin-bottom:18px}
+.login-form{display:flex;flex-direction:column;gap:12px}
+.login-field{
+  display:flex;align-items:center;gap:9px;background:var(--bg2);border:1px solid var(--line);
+  border-radius:11px;padding:0 12px;transition:.15s;
+}
+.login-field:focus-within{border-color:var(--gold)}
+.login-field .login-ic{color:var(--muted);flex-shrink:0}
+.login-field input{
+  flex:1;background:none;border:none;outline:none;color:var(--ink);
+  padding:12px 0;font-size:14px;min-width:0;
+}
+.login-eye{color:var(--muted);display:flex;align-items:center;flex-shrink:0}
+.login-eye:hover{color:var(--gold)}
+.login-error{
+  color:var(--coral);background:rgba(255,111,94,.1);border:1px solid rgba(255,111,94,.3);
+  border-radius:9px;padding:9px 12px;font-size:13px;text-align:center;
+}
+.login-submit{justify-content:center;margin-top:4px}
+.login-hint{margin-top:16px;color:var(--faint);font-size:12px;text-align:center;line-height:1.8}
+
+/* ---------- change password modal ---------- */
+.cp-overlay{
+  position:fixed;inset:0;background:rgba(5,8,16,.55);backdrop-filter:blur(6px);
+  display:flex;align-items:center;justify-content:center;z-index:80;padding:16px;
+}
+.cp-card{
+  width:100%;max-width:360px;background:var(--panel);border:1px solid var(--line);
+  border-radius:16px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.3);
+}
+.cp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.cp-head-t{display:flex;align-items:center;gap:8px;font-weight:800;font-size:15px}
+.cp-done{display:flex;flex-direction:column;align-items:center;gap:14px;padding:8px 0;text-align:center}
+>>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
