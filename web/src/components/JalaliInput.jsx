@@ -1,4 +1,5 @@
 import React from "react";
+import { CalendarDays } from "lucide-react";
 import { MONTHS, isoToJalali, jalaliToISO, toFa, todayJalali } from "../jalali";
 
 // A Y/M/D Jalali selector that emits an ISO (Gregorian) string.
@@ -10,6 +11,12 @@ export default function JalaliInput({ value, onChange }) {
   const set = (patch) => {
     const n = { ...j, ...patch };
     const iso = jalaliToISO(n.jy, n.jm, n.jd);
+    if (iso) onChange(iso);
+  };
+
+  const setToday = () => {
+    const t = todayJalali();
+    const iso = jalaliToISO(t.jy, t.jm, t.jd);
     if (iso) onChange(iso);
   };
 
@@ -29,6 +36,9 @@ export default function JalaliInput({ value, onChange }) {
       <select value={j.jy} onChange={(e) => set({ jy: +e.target.value })}>
         {years.map((y) => <option key={y} value={y}>{toFa(y)}</option>)}
       </select>
+      <button type="button" className="jdate-today" onClick={setToday} title="امروز">
+        <CalendarDays size={13} /> امروز
+      </button>
     </div>
   );
 }

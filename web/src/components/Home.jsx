@@ -67,7 +67,7 @@ export default function Home({
     const p = projectsRef.current.find((x) => x.id === id);
     if (!p) return;
     return api.updateProject(id, {
-      title: p.title, sub: p.sub, start_date: p.start_date,
+      title: p.title, sub: p.sub, start_date: p.start_date, end_date: p.end_date,
       node_x: p.node_x, node_y: p.node_y, node_size: p.node_size,
       node_font: p.node_font, node_bold: p.node_bold, template_id: p.template_id,
     });
@@ -339,11 +339,12 @@ function DefineProject({ defaultDate, templates, defaultTemplate, onAdd, onClose
   const [f, setF] = useState({
     title: "", sub: "",
     start_date: defaultDate || jalaliToISO(1404, 1, 1),
+    end_date: "",
     template_id: defaultTemplate || "",
   });
   const submit = () => {
     if (!f.title.trim()) return;
-    onAdd({ ...f, template_id: f.template_id || null });
+    onAdd({ ...f, end_date: f.end_date || null, template_id: f.template_id || null });
   };
   return (
     <Panel title="تعریف فعالیت" onClose={onClose}>
@@ -354,6 +355,15 @@ function DefineProject({ defaultDate, templates, defaultTemplate, onAdd, onClose
       <div className="dp-row">
         <label className="dp-lbl">تاریخ شروع</label>
         <JalaliInput value={f.start_date} onChange={(d) => setF({ ...f, start_date: d })} />
+      </div>
+      <div className="dp-row">
+        <label className="dp-lbl">تاریخ پایان</label>
+        <JalaliInput value={f.end_date || f.start_date} onChange={(d) => setF({ ...f, end_date: d })} />
+        {f.end_date && (
+          <button type="button" className="mini" onClick={() => setF({ ...f, end_date: "" })} title="پاک کردن">
+            <X size={13} />
+          </button>
+        )}
       </div>
       <div className="dp-row">
         <label className="dp-lbl">تمپلیت</label>
@@ -491,6 +501,15 @@ function NodeEditor({ p, templates, onPatch, onSave, onEnter, onDelete, onClose 
       <div className="dp-row">
         <label className="dp-lbl">تاریخ شروع</label>
         <JalaliInput value={p.start_date || jalaliToISO(1404, 1, 1)} onChange={(d) => onPatch({ start_date: d })} />
+      </div>
+      <div className="dp-row">
+        <label className="dp-lbl">تاریخ پایان</label>
+        <JalaliInput value={p.end_date || p.start_date || jalaliToISO(1404, 1, 1)} onChange={(d) => onPatch({ end_date: d })} />
+        {p.end_date && (
+          <button type="button" className="mini" onClick={() => onPatch({ end_date: null })} title="پاک کردن">
+            <X size={13} />
+          </button>
+        )}
       </div>
       <div className="dp-row">
         <label className="dp-lbl">تمپلیت</label>
