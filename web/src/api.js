@@ -67,7 +67,8 @@ export const api = {
   delType: (id) => del("/api/types/" + id),
 
   platforms: () => get("/api/platforms"),
-  addPlatform: (label) => send("POST")("/api/platforms", { label }),
+  addPlatform: (label, logo_url) => send("POST")("/api/platforms", { label, logo_url: logo_url || null }),
+  updatePlatform: (id, patch) => send("PUT")("/api/platforms/" + id, patch),
   delPlatform: (id) => del("/api/platforms/" + id),
 
   keywords: (prefix) => get("/api/keywords?prefix=" + encodeURIComponent(prefix)),
@@ -92,6 +93,7 @@ export const api = {
   addProject: (p) => send("POST")("/api/projects", p),
   updateProject: (id, p) => send("PUT")("/api/projects/" + id, p),
   delProject: (id) => del("/api/projects/" + id),
+  duplicateProject: (id, templateId) => send("POST")(`/api/projects/${id}/duplicate`, { template_id: templateId ?? null }),
   saveStats: (id, stats) => send("PUT")(`/api/projects/${id}/stats`, { stats }),
 
   works: (params) => {

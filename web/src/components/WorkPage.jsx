@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronRight, ChevronLeft, Maximize2, Eye, Plus, X, Save, Check, Trash2, Star, Link2 } from "lucide-react";
+import { ChevronRight, ChevronLeft, Maximize2, Eye, Plus, X, Save, Check, Trash2, Star, Link2, Camera, Heart, MessageCircle } from "lucide-react";
 import { api } from "../api";
 import { formatJalali, toFa, jalaliToISO } from "../jalali";
 import JalaliInput from "./JalaliInput.jsx";
@@ -19,6 +19,8 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
   const [similar,     setSimilar]     = useState([]);
   const [draft,       setDraft]       = useState(null);
   const [newPlatform, setNewPlatform] = useState("");
+  const [newPlatformLogo, setNewPlatformLogo] = useState(null);
+  const platformLogoRef = useRef(null);
   const [saved,       setSaved]       = useState(false); // visual feedback
   const [notFound,    setNotFound]    = useState(false);
   const [axisList,    setAxisList]    = useState([]);
@@ -102,19 +104,19 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
 
   /* platform views */
   const pvMap = {};
-  draft.platformViews.forEach((pv) => (pvMap[pv.platform_id] = pv.views));
-  const draftTotal = Object.values(pvMap).reduce((a, b) => a + (Number(b) || 0), 0);
+  draft.platformViews.forEach((pv) => (pvMap[pv.platform_id] = pv));
+  const draftTotal = Object.values(pvMap).reduce((a, pv) => a + (Number(pv.views) || 0), 0);
 
   const togglePlatform = (pid, checked) => {
     let list = draft.platformViews.filter((pv) => pv.platform_id !== pid);
-    if (checked) list = [...list, { platform_id: pid, label: platforms.find(p=>p.id===pid)?.label, views: 0 }];
+    if (checked) list = [...list, { platform_id: pid, label: platforms.find(p=>p.id===pid)?.label, views: 0, likes: 0, comments: 0 }];
     setDraft({ ...draft, platformViews: list });
   };
-  const setPV = (pid, views) =>
+  const setPVField = (pid, field, value) =>
     setDraft({
       ...draft,
       platformViews: draft.platformViews.map((pv) =>
-        pv.platform_id === pid ? { ...pv, views: Number(views) || 0 } : pv),
+        pv.platform_id === pid ? { ...pv, [field]: Number(value) || 0 } : pv),
     });
 
   const save = async () => {
@@ -145,9 +147,23 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
 
   const addPlatform = async () => {
     if (!newPlatform.trim()) return;
-    await api.addPlatform(newPlatform.trim());
+    let logo_url = null;
+    if (newPlatformLogo) {
+      try { const r = await api.uploadWithProgress(newPlatformLogo); logo_url = r.url; } catch (e) {}
+    }
+    await api.addPlatform(newPlatform.trim(), logo_url);
     await reloadMeta();
     setNewPlatform("");
+    setNewPlatformLogo(null);
+    if (platformLogoRef.current) platformLogoRef.current.value = "";
+  };
+  const uploadPlatformLogo = async (pid, file) => {
+    if (!file) return;
+    try {
+      const r = await api.uploadWithProgress(file);
+      await api.updatePlatform(pid, { logo_url: r.url });
+      await reloadMeta();
+    } catch (e) {}
   };
 
   const [uploadPct, setUploadPct] = useState(null);
@@ -386,22 +402,43 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
 
           {/* platform views */}
           <div className="pv-block">
-            <span className="info-k">بازدید به تفکیک پلتفرم</span>
+            <span className="info-k">بازدید / لایک / کامنت به تفکیک پلتفرم</span>
             {admin ? (
               <>
                 <div className="pv-list">
                   {platforms.map((p) => {
                     const on = p.id in pvMap;
+                    const pv = pvMap[p.id] || {};
                     return (
                       <div key={p.id} className={`pv-row ${on ? "on" : ""}`}>
-                        <label>
+                        <label className="pv-plabel">
                           <input type="checkbox" checked={on}
                             onChange={(e) => togglePlatform(p.id, e.target.checked)} />
+                          {p.logo_url
+                            ? <img className="plat-logo" src={p.logo_url} alt="" />
+                            : <span className="plat-logo ph">{p.label?.[0] || "?"}</span>}
                           {p.label}
+                          <label className="plat-logo-edit" title="تغییر لوگو">
+                            <Camera size={12} />
+                            <input type="file" hidden accept="image/*"
+                              onChange={(e) => uploadPlatformLogo(p.id, e.target.files?.[0])} />
+                          </label>
                         </label>
                         {on && (
-                          <input className="pv-num" type="number" value={pvMap[p.id]}
-                            onChange={(e) => setPV(p.id, e.target.value)} />
+                          <div className="pv-nums">
+                            <label className="pv-num-lbl"><Eye size={12} />
+                              <input className="pv-num" type="number" value={pv.views || 0}
+                                onChange={(e) => setPVField(p.id, "views", e.target.value)} />
+                            </label>
+                            <label className="pv-num-lbl"><Heart size={12} />
+                              <input className="pv-num" type="number" value={pv.likes || 0}
+                                onChange={(e) => setPVField(p.id, "likes", e.target.value)} />
+                            </label>
+                            <label className="pv-num-lbl"><MessageCircle size={12} />
+                              <input className="pv-num" type="number" value={pv.comments || 0}
+                                onChange={(e) => setPVField(p.id, "comments", e.target.value)} />
+                            </label>
+                          </div>
                         )}
                       </div>
                     );
@@ -411,8 +448,14 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
                   <input placeholder="افزودن پلتفرم…" value={newPlatform}
                     onChange={(e) => setNewPlatform(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && addPlatform()} />
+                  <button className="mini" title="لوگوی پلتفرم جدید" onClick={() => platformLogoRef.current?.click()}>
+                    <Camera size={14} />
+                  </button>
+                  <input ref={platformLogoRef} type="file" hidden accept="image/*"
+                    onChange={(e) => setNewPlatformLogo(e.target.files?.[0] || null)} />
                   <button className="mini" onClick={addPlatform}><Plus size={14} /></button>
                 </div>
+                {newPlatformLogo && <span className="muted-sm">لوگو انتخاب شد: {newPlatformLogo.name}</span>}
                 <div className="pv-total">
                   <Eye size={18} className="cyan" />
                   <div>
@@ -428,7 +471,13 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
                     ? <span className="muted-sm">ثبت نشده</span>
                     : work.platformViews.map((pv) => (
                       <div key={pv.platform_id} className="pv-chip">
-                        <span>{pv.label}</span><b>{fmtNum(pv.views)}</b>
+                        {pv.logo_url
+                          ? <img className="plat-logo sm" src={pv.logo_url} alt="" />
+                          : null}
+                        <span>{pv.label}</span>
+                        <b><Eye size={11} /> {fmtNum(pv.views)}</b>
+                        {!!pv.likes && <b><Heart size={11} /> {fmtNum(pv.likes)}</b>}
+                        {!!pv.comments && <b><MessageCircle size={11} /> {fmtNum(pv.comments)}</b>}
                       </div>
                     ))}
                 </div>

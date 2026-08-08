@@ -82,13 +82,19 @@ app.post("/api/upload", requireAdmin, upload.single("file"), (req, res) => {
 const totalViews = (workId) =>
   db.prepare("SELECT COALESCE(SUM(views),0) t FROM work_platform_views WHERE work_id=?")
     .get(workId).t;
+const totalLikes = (workId) =>
+  db.prepare("SELECT COALESCE(SUM(likes),0) t FROM work_platform_views WHERE work_id=?")
+    .get(workId).t;
+const totalComments = (workId) =>
+  db.prepare("SELECT COALESCE(SUM(comments),0) t FROM work_platform_views WHERE work_id=?")
+    .get(workId).t;
 
 const keywordsOf = (workId) =>
   db.prepare("SELECT text FROM work_keywords WHERE work_id=?").all(workId).map((r) => r.text);
 
 const platformViewsOf = (workId) =>
   db.prepare(
-    `SELECT pv.platform_id, p.label, pv.views
+    `SELECT pv.platform_id, p.label, p.logo_url, pv.views, pv.likes, pv.comments
      FROM work_platform_views pv JOIN platforms p ON p.id=pv.platform_id
      WHERE pv.work_id=?`
   ).all(workId);
@@ -104,6 +110,8 @@ function hydrateWork(w) {
     keywords: keywordsOf(w.id),
     platformViews: platformViewsOf(w.id),
     totalViews: totalViews(w.id),
+    totalLikes: totalLikes(w.id),
+    totalComments: totalComments(w.id),
     media: mediaOf(w.id),
   };
 }
@@ -151,8 +159,16 @@ app.delete("/api/types/:id", requireAdmin, (req, res) => {
 app.get("/api/platforms", (req, res) =>
   res.json(db.prepare("SELECT * FROM platforms ORDER BY id").all()));
 app.post("/api/platforms", requireAdmin, (req, res) => {
-  const r = db.prepare("INSERT INTO platforms (label) VALUES (?)").run(req.body.label);
+  const r = db.prepare("INSERT INTO platforms (label,logo_url) VALUES (?,?)")
+    .run(req.body.label, req.body.logo_url || null);
   res.json(db.prepare("SELECT * FROM platforms WHERE id=?").get(r.lastInsertRowid));
+});
+app.put("/api/platforms/:id", requireAdmin, (req, res) => {
+  const cur = db.prepare("SELECT * FROM platforms WHERE id=?").get(req.params.id);
+  if (!cur) return res.status(404).json({ error: "not found" });
+  const b = { ...cur, ...req.body };
+  db.prepare("UPDATE platforms SET label=?, logo_url=? WHERE id=?").run(b.label, b.logo_url ?? null, req.params.id);
+  res.json(db.prepare("SELECT * FROM platforms WHERE id=?").get(req.params.id));
 });
 app.delete("/api/platforms/:id", requireAdmin, (req, res) => {
   db.prepare("DELETE FROM work_platform_views WHERE platform_id=?").run(req.params.id);
@@ -196,16 +212,17 @@ app.get("/api/templates", (req, res) => {
 app.post("/api/templates", requireAdmin, (req, res) => {
   const b = req.body;
   const r = db.prepare(
-    "INSERT INTO templates (label, from_date, to_date, sort_order, created_at) VALUES (?,?,?,?,?)"
-  ).run(b.label || "تمپلیت جدید", b.from_date || null, b.to_date || null, b.sort_order ?? 0, new Date().toISOString());
+    "INSERT INTO templates (label, from_date, to_date, sort_order, theme, font, created_at) VALUES (?,?,?,?,?,?,?)"
+  ).run(b.label || "تمپلیت جدید", b.from_date || null, b.to_date || null, b.sort_order ?? 0,
+    b.theme || "orbit", b.font || "Vazirmatn", new Date().toISOString());
   res.json(db.prepare("SELECT * FROM templates WHERE id=?").get(r.lastInsertRowid));
 });
 app.put("/api/templates/:id", requireAdmin, (req, res) => {
   const cur = db.prepare("SELECT * FROM templates WHERE id=?").get(req.params.id);
   if (!cur) return res.status(404).json({ error: "not found" });
   const b = { ...cur, ...req.body };
-  db.prepare("UPDATE templates SET label=?, from_date=?, to_date=?, sort_order=? WHERE id=?")
-    .run(b.label, b.from_date, b.to_date, b.sort_order, req.params.id);
+  db.prepare("UPDATE templates SET label=?, from_date=?, to_date=?, sort_order=?, theme=?, font=? WHERE id=?")
+    .run(b.label, b.from_date, b.to_date, b.sort_order, b.theme || "orbit", b.font || "Vazirmatn", req.params.id);
   res.json(db.prepare("SELECT * FROM templates WHERE id=?").get(req.params.id));
 });
 app.delete("/api/templates/:id", requireAdmin, (req, res) => {
@@ -271,6 +288,52 @@ app.put("/api/projects/:id", requireAdmin, (req, res) => {
 app.delete("/api/projects/:id", requireAdmin, (req, res) => {
   db.prepare("DELETE FROM projects WHERE id=?").run(req.params.id);
   res.json({ ok: true });
+});
+
+/* full deep-copy of a project (stats + works + their keywords/media/platform-views)
+   into another template, so an activity doesn't have to be redefined by hand. */
+app.post("/api/projects/:id/duplicate", requireAdmin, (req, res) => {
+  const src = db.prepare("SELECT * FROM projects WHERE id=?").get(req.params.id);
+  if (!src) return res.status(404).json({ error: "not found" });
+  const targetTemplateId = req.body.template_id ?? null;
+
+  const newId = db.transaction(() => {
+    const now = new Date().toISOString();
+    const pr = db.prepare(
+      `INSERT INTO projects (title,sub,start_date,end_date,teaser_url,node_x,node_y,node_size,node_font,node_bold,orbit,template_id,created_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
+    ).run(
+      src.title + " (کپی)", src.sub, src.start_date, src.end_date, src.teaser_url,
+      src.node_x, src.node_y, src.node_size, src.node_font, src.node_bold, src.orbit,
+      targetTemplateId, now
+    );
+    const pid = pr.lastInsertRowid;
+
+    const stats = db.prepare("SELECT * FROM stats WHERE project_id=? ORDER BY sort_order").all(src.id);
+    const insStat = db.prepare("INSERT INTO stats (project_id,label,value,descr,sort_order) VALUES (?,?,?,?,?)");
+    stats.forEach((s) => insStat.run(pid, s.label, s.value, s.descr, s.sort_order));
+
+    const works = db.prepare("SELECT * FROM works WHERE project_id=?").all(src.id);
+    const insWork = db.prepare(
+      `INSERT INTO works (project_id,type,title,descr,axis,campaign,event_date,url,featured,created_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`
+    );
+    const insKw = db.prepare("INSERT INTO work_keywords (work_id,text) VALUES (?,?)");
+    const insPV = db.prepare("INSERT INTO work_platform_views (work_id,platform_id,views,likes,comments) VALUES (?,?,?,?,?)");
+    const insMedia = db.prepare("INSERT INTO work_media (work_id,url,kind,sort_order) VALUES (?,?,?,?)");
+
+    for (const w of works) {
+      const wr = insWork.run(pid, w.type, w.title, w.descr, w.axis, w.campaign, w.event_date, w.url, w.featured, now);
+      const wid = wr.lastInsertRowid;
+      keywordsOf(w.id).forEach((k) => insKw.run(wid, k));
+      db.prepare("SELECT platform_id,views,likes,comments FROM work_platform_views WHERE work_id=?").all(w.id)
+        .forEach((pv) => insPV.run(wid, pv.platform_id, pv.views, pv.likes, pv.comments));
+      mediaOf(w.id).forEach((m) => insMedia.run(wid, m.url, m.kind, m.sort_order));
+    }
+    return pid;
+  })();
+
+  res.json(hydrateProject(db.prepare("SELECT * FROM projects WHERE id=?").get(newId)));
 });
 
 /* ---------- stats ---------- */
@@ -352,9 +415,9 @@ function saveKeywords(workId, keywords) {
 }
 function savePlatformViews(workId, platformViews) {
   db.prepare("DELETE FROM work_platform_views WHERE work_id=?").run(workId);
-  const ins = db.prepare("INSERT INTO work_platform_views (work_id,platform_id,views) VALUES (?,?,?)");
+  const ins = db.prepare("INSERT INTO work_platform_views (work_id,platform_id,views,likes,comments) VALUES (?,?,?,?,?)");
   (platformViews || []).forEach((pv) =>
-    ins.run(workId, pv.platform_id, Number(pv.views) || 0));
+    ins.run(workId, pv.platform_id, Number(pv.views) || 0, Number(pv.likes) || 0, Number(pv.comments) || 0));
 }
 function saveMedia(workId, media) {
   db.prepare("DELETE FROM work_media WHERE work_id=?").run(workId);
