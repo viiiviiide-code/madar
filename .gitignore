@@ -1,20 +1,14 @@
-<<<<<<< HEAD
-node_modules/
-database/*.db
-database/madar.db
-uploads/
-.env
-=======
 # Node
 node_modules/
+web/node_modules/
+server/node_modules/
 npm-debug.log
 
 # Environment
 .env
 .env.*
 
-# Database
-database/*.db
+# Database temporary files
 database/*.db-shm
 database/*.db-wal
 
@@ -30,4 +24,3 @@ web/dist/
 # OS
 .DS_Store
 Thumbs.db
->>>>>>> 2b203d3b41562bca56334c2dcc8f511ba3eaf494
