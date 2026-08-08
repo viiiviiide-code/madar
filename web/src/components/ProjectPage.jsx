@@ -252,10 +252,6 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
               {types.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
             </select>
           </div>
-          <button className={`btn light sm featured-filter ${featuredOnly ? "on" : ""}`}
-            onClick={() => setFeaturedOnly((v) => !v)} title="فقط آثار شاخص">
-            <Star size={14} fill={featuredOnly ? "currentColor" : "none"} /> شاخص
-          </button>
           <div className="sort">
             <ArrowUpDown size={15} className="muted" />
             <select value={sort} onChange={(e) => setSort(e.target.value)}>
@@ -265,6 +261,10 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
               <option value="title">عنوان</option>
             </select>
           </div>
+          <button className={`sort featured-filter ${featuredOnly ? "on" : ""}`}
+            onClick={() => setFeaturedOnly((v) => !v)} title="فقط آثار شاخص">
+            <Star size={15} fill={featuredOnly ? "currentColor" : "none"} /> شاخص
+          </button>
           <div className="vmode">
             <button className={viewMode === "grid" ? "on" : ""} onClick={() => setViewMode("grid")}>
               <LayoutGrid size={16} />
@@ -710,7 +710,8 @@ function AddWork({ projectId, types, reloadMeta, onAdded, copyFrom, onClose }) {
               <div className="link-add">
                 <input placeholder="آدرس لینک (اسکرین‌شات/لینک خارجی)" value={linkUrl}
                   onChange={(e) => setLinkUrl(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && addLink()} />
+                  onKeyDown={(e) => e.key === "Enter" && addLink()}
+                  onBlur={addLink} />
                 <button className="mini" onClick={addLink} title="افزودن لینک"><Link2 size={14} /></button>
               </div>
             </div>

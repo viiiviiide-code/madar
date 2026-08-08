@@ -35,6 +35,7 @@ export default function Home({
 
   const isTemplate = mode?.type === "template";
   const activeTemplate = isTemplate ? templates.find((t) => t.id === mode.id) : null;
+  const [tplEditTarget, setTplEditTarget] = useState(null);
 
   // date-mode range (Jalali)
   const [range, setRange] = useState({
@@ -225,6 +226,9 @@ export default function Home({
       {isTemplate && admin && (
         <div className="daterange-bar template-bar">
           <span className="drb-label">{activeTemplate?.label || "تمپلیت"}</span>
+          <button className="btn light sm" onClick={() => { setTplEditTarget(activeTemplate?.id || null); setHomeTool("template"); }}>
+            <Edit3 size={14} /> ویرایش تمپلیت
+          </button>
           <button className="btn gold sm" onClick={() => setHomeTool("define")}>
             <Plus size={14} /> فعالیت جدید
           </button>
@@ -245,8 +249,10 @@ export default function Home({
         <TemplatePanel
           templates={templates}
           reload={reloadTemplates}
-          onClose={() => setHomeTool(null)}
+          onClose={() => { setHomeTool(null); setTplEditTarget(null); }}
           flash={flash}
+          onEnterTemplate={(t) => { setMode({ type: "template", id: t.id, label: t.label }); setHomeTool(null); setTplEditTarget(null); }}
+          initialEditId={tplEditTarget}
         />
       )}
       {admin && homeTool === "settings" && (
@@ -416,19 +422,24 @@ function DefineProject({ defaultDate, templates, defaultTemplate, onAdd, onClose
   );
 }
 
-function TemplatePanel({ templates, reload, onClose, flash }) {
+function TemplatePanel({ templates, reload, onClose, flash, onEnterTemplate, initialEditId }) {
   const [draft, setDraft] = useState({
     label: "", from_date: jalaliToISO(1404, 1, 1), to_date: jalaliToISO(1404, 12, 1),
     theme: "orbit", font: "Vazirmatn",
   });
-  const [editId, setEditId] = useState(null);
-  const [edit, setEdit] = useState(null);
+  const initial = initialEditId ? templates.find((t) => t.id === initialEditId) : null;
+  const [editId, setEditId] = useState(initialEditId || null);
+  const [edit, setEdit] = useState(initial
+    ? { label: initial.label, from_date: initial.from_date, to_date: initial.to_date, theme: initial.theme || "orbit", font: initial.font || "Vazirmatn" }
+    : null);
 
   const add = async () => {
     if (!draft.label.trim()) return;
-    await api.addTemplate(draft);
+    const created = await api.addTemplate(draft);
     setDraft({ label: "", from_date: jalaliToISO(1404, 1, 1), to_date: jalaliToISO(1404, 12, 1), theme: "orbit", font: "Vazirmatn" });
-    await reload(); flash("تمپلیت ساخته شد ✓");
+    await reload();
+    flash("تمپلیت ساخته شد ✓");
+    if (created?.id) onEnterTemplate?.(created);
   };
   const startEdit = (t) => { setEditId(t.id); setEdit({ label: t.label, from_date: t.from_date, to_date: t.to_date, theme: t.theme || "orbit", font: t.font || "Vazirmatn" }); };
   const saveEdit = async () => {

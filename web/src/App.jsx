@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   Settings, Menu, X, Sun, Moon, Circle, CalendarRange, Layers,
-  Plus, SlidersHorizontal, FolderPlus, ChevronLeft, ChevronDown, LogOut, Star,
+  Plus, SlidersHorizontal, FolderPlus, ChevronLeft, ChevronDown, LogOut, Star, Trash2,
 } from "lucide-react";
 import { api, auth, setUnauthorizedHandler } from "./api";
 import { formatJalaliMonth, isoToJalali } from "./jalali";
@@ -116,6 +116,20 @@ export default function App() {
     setMode({ type: "date" });
     setHomeTool("define"); setSidebar(false); go({ name: "home" });
   };
+  const delTemplateFromSidebar = async (t, e) => {
+    e.stopPropagation();
+    if (!confirm(`تمپلیت «${t.label}» حذف شود؟ فعالیت‌های داخلش حذف نمی‌شوند، فقط از این تمپلیت جدا می‌شوند.`)) return;
+    await api.delTemplate(t.id);
+    if (mode.type === "template" && mode.id === t.id) setMode({ type: "date" });
+    loadTemplates(); loadProjects();
+  };
+  const delActivityFromSidebar = async (p, e) => {
+    e.stopPropagation();
+    if (!confirm(`فعالیت «${p.title}» حذف شود؟`)) return;
+    await api.delProject(p.id);
+    if (view.name === "project" && String(view.id) === String(p.id)) go({ name: "home" });
+    loadProjects(); loadTemplates();
+  };
 
   if (!user) return <Login onLogin={setUser} />;
   if (!settings) return <div className="app loading">در حال بارگذاری…</div>;
@@ -180,16 +194,28 @@ export default function App() {
                       onClick={(e) => { e.stopPropagation(); setSidebar(false); go({ name: "featured", tid: t.id, label: t.label }); }}>
                       <Star size={13} />
                     </span>
+                    {admin && (
+                      <button className="sb-del" title="حذف تمپلیت" onClick={(e) => delTemplateFromSidebar(t, e)}>
+                        <Trash2 size={13} />
+                      </button>
+                    )}
                   </div>
                   {open && (
                     <div className="sb-tpl-nested">
                       {tplActs.length === 0 && <p className="sb-empty sm">فعالیتی ثبت نشده.</p>}
                       {tplActs.map((p) => (
-                        <button key={p.id} className="sb-item nested" onClick={() => openActivity(p)}>
-                          <Circle size={8} className="sb-dot" />
-                          <span className="sb-title">{p.title}</span>
-                          <span className="sb-date">{p.start_date ? formatJalaliMonth(p.start_date) : "—"}</span>
-                        </button>
+                        <div key={p.id} className="sb-item nested sb-row-with-del">
+                          <button className="sb-row-main" onClick={() => openActivity(p)}>
+                            <Circle size={8} className="sb-dot" />
+                            <span className="sb-title">{p.title}</span>
+                            <span className="sb-date">{p.start_date ? formatJalaliMonth(p.start_date) : "—"}</span>
+                          </button>
+                          {admin && (
+                            <button className="sb-del" title="حذف فعالیت" onClick={(e) => delActivityFromSidebar(p, e)}>
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                        </div>
                       ))}
                       {admin && (
                         <button className="sb-item nested sb-new" onClick={() => newActivityInTemplate(t)}>
@@ -222,11 +248,18 @@ export default function App() {
               <>
                 {allProjects.filter((p) => !p.template_id).length === 0 && <p className="sb-empty">فعالیتی ثبت نشده.</p>}
                 {allProjects.filter((p) => !p.template_id).map((p) => (
-                  <button key={p.id} className="sb-item" onClick={() => openActivity(p)}>
-                    <Circle size={9} className="sb-dot" />
-                    <span className="sb-title">{p.title}</span>
-                    <span className="sb-date">{p.start_date ? formatJalaliMonth(p.start_date) : "—"}</span>
-                  </button>
+                  <div key={p.id} className="sb-item sb-row-with-del">
+                    <button className="sb-row-main" onClick={() => openActivity(p)}>
+                      <Circle size={9} className="sb-dot" />
+                      <span className="sb-title">{p.title}</span>
+                      <span className="sb-date">{p.start_date ? formatJalaliMonth(p.start_date) : "—"}</span>
+                    </button>
+                    {admin && (
+                      <button className="sb-del" title="حذف فعالیت" onClick={(e) => delActivityFromSidebar(p, e)}>
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+                  </div>
                 ))}
                 {admin && (
                   <button className={`sb-item sb-new ${homeTool === "define" && mode.type !== "template" ? "active" : ""}`}
