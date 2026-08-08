@@ -1,13 +1,24 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Search, X, Plus, Minus, ArrowRight, ArrowLeft, Bold, LogIn, Trash2, Save, Type, Menu,
-  CalendarRange, Layers, Edit3,
+  CalendarRange, Layers, Edit3, Copy,
 } from "lucide-react";
 import { api } from "../api";
 import {
   MONTHS, toFa, faToEn, jMonthStartISO, jMonthEndISO, formatJalaliMonth, formatJalali, jalaliToISO,
 } from "../jalali";
 import JalaliInput from "./JalaliInput.jsx";
+
+export const TEMPLATE_FONTS = [
+  { key: "Vazirmatn", label: "وزیرمتن" },
+  { key: "Sahel",     label: "ساحل" },
+  { key: "Samim",     label: "صمیم" },
+  { key: "Shabnam",   label: "شبنم" },
+];
+export const TEMPLATE_THEMES = [
+  { key: "orbit",  label: "دایره‌ای (مداری)" },
+  { key: "square", label: "مربعی" },
+];
 
 export default function Home({
   settings, updateSetting, admin, mode, setMode,
@@ -147,6 +158,8 @@ export default function Home({
 
   const editing = editId ? projects.find((p) => p.id === editId) : null;
   const rings = Array.from({ length: orbits }, (_, i) => 12 + (i + 1) * (38 / orbits));
+  const theme = isTemplate ? (activeTemplate?.theme || "orbit") : "orbit";
+  const templateFont = isTemplate ? (activeTemplate?.font || null) : null;
 
   // center subtitle for template mode
   const tplRange = activeTemplate && activeTemplate.from_date && activeTemplate.to_date
@@ -154,7 +167,7 @@ export default function Home({
     : "";
 
   return (
-    <main className="home">
+    <main className="home" style={templateFont ? { fontFamily: templateFont } : undefined}>
       {toast && <div className="toast">{toast}</div>}
 
       {/* compact search — top corner, away from center */}
@@ -240,16 +253,25 @@ export default function Home({
           onSave={async () => { await persist(editing.id); await load(); flash("ذخیره شد ✓"); setEditId(null); }}
           onEnter={() => openProject(editing.id)}
           onDelete={async () => { if (confirm("حذف این فعالیت؟")) { await api.delProject(editing.id); setEditId(null); load(); } }}
+          onDuplicate={async (targetTemplateId) => {
+            await api.duplicateProject(editing.id, targetTemplateId || null);
+            await reloadTemplates(); await load();
+            flash("فعالیت به‌طور کامل کپی شد ✓");
+            setEditId(null);
+          }}
           onClose={() => setEditId(null)}
         />
       )}
 
       {/* orbit map */}
       <div className="orbit-wrap">
-        <div className="orbit-square" ref={squareRef}>
+        <div className={`orbit-square theme-${theme}`} ref={squareRef}>
           <svg className="orbit-lines" viewBox="0 0 100 100" preserveAspectRatio="none">
             {rings.map((r, i) => (
-              <circle key={i} cx="50" cy="50" r={r} className={`ring ${i % 2 ? "ring-dash" : ""}`} />
+              theme === "square"
+                ? <rect key={i} x={50 - r} y={50 - r} width={r * 2} height={r * 2} rx="3"
+                    className={`ring ${i % 2 ? "ring-dash" : ""}`} />
+                : <circle key={i} cx="50" cy="50" r={r} className={`ring ${i % 2 ? "ring-dash" : ""}`} />
             ))}
             {projects.map((p) => p && (
               <line key={p.id} x1="50" y1="50" x2={p.node_x} y2={p.node_y} className="spoke" />
@@ -381,17 +403,20 @@ function DefineProject({ defaultDate, templates, defaultTemplate, onAdd, onClose
 }
 
 function TemplatePanel({ templates, reload, onClose, flash }) {
-  const [draft, setDraft] = useState({ label: "", from_date: jalaliToISO(1404, 1, 1), to_date: jalaliToISO(1404, 12, 1) });
+  const [draft, setDraft] = useState({
+    label: "", from_date: jalaliToISO(1404, 1, 1), to_date: jalaliToISO(1404, 12, 1),
+    theme: "orbit", font: "Vazirmatn",
+  });
   const [editId, setEditId] = useState(null);
   const [edit, setEdit] = useState(null);
 
   const add = async () => {
     if (!draft.label.trim()) return;
     await api.addTemplate(draft);
-    setDraft({ label: "", from_date: jalaliToISO(1404, 1, 1), to_date: jalaliToISO(1404, 12, 1) });
+    setDraft({ label: "", from_date: jalaliToISO(1404, 1, 1), to_date: jalaliToISO(1404, 12, 1), theme: "orbit", font: "Vazirmatn" });
     await reload(); flash("تمپلیت ساخته شد ✓");
   };
-  const startEdit = (t) => { setEditId(t.id); setEdit({ label: t.label, from_date: t.from_date, to_date: t.to_date }); };
+  const startEdit = (t) => { setEditId(t.id); setEdit({ label: t.label, from_date: t.from_date, to_date: t.to_date, theme: t.theme || "orbit", font: t.font || "Vazirmatn" }); };
   const saveEdit = async () => {
     await api.updateTemplate(editId, edit);
     setEditId(null); setEdit(null);
@@ -414,6 +439,18 @@ function TemplatePanel({ templates, reload, onClose, flash }) {
                 <div className="dp-row">
                   <label className="dp-lbl">تا</label>
                   <JalaliInput value={edit.to_date} onChange={(d) => setEdit({ ...edit, to_date: d })} />
+                </div>
+                <div className="dp-row">
+                  <label className="dp-lbl">تم گرافیکی</label>
+                  <select className="full-select" value={edit.theme} onChange={(e) => setEdit({ ...edit, theme: e.target.value })}>
+                    {TEMPLATE_THEMES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+                  </select>
+                </div>
+                <div className="dp-row">
+                  <label className="dp-lbl">فونت</label>
+                  <select className="full-select" style={{ fontFamily: edit.font }} value={edit.font} onChange={(e) => setEdit({ ...edit, font: e.target.value })}>
+                    {TEMPLATE_FONTS.map((f) => <option key={f.key} value={f.key} style={{ fontFamily: f.key }}>{f.label}</option>)}
+                  </select>
                 </div>
                 <div className="dp-actions">
                   <button className="btn ghost sm" onClick={() => setEditId(null)}>انصراف</button>
@@ -448,6 +485,18 @@ function TemplatePanel({ templates, reload, onClose, flash }) {
         <div className="dp-row">
           <label className="dp-lbl">تا</label>
           <JalaliInput value={draft.to_date} onChange={(d) => setDraft({ ...draft, to_date: d })} />
+        </div>
+        <div className="dp-row">
+          <label className="dp-lbl">تم گرافیکی</label>
+          <select className="full-select" value={draft.theme} onChange={(e) => setDraft({ ...draft, theme: e.target.value })}>
+            {TEMPLATE_THEMES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+          </select>
+        </div>
+        <div className="dp-row">
+          <label className="dp-lbl">فونت</label>
+          <select className="full-select" style={{ fontFamily: draft.font }} value={draft.font} onChange={(e) => setDraft({ ...draft, font: e.target.value })}>
+            {TEMPLATE_FONTS.map((f) => <option key={f.key} value={f.key} style={{ fontFamily: f.key }}>{f.label}</option>)}
+          </select>
         </div>
         <div className="dp-actions">
           <button className="btn gold sm" disabled={!draft.label.trim()} onClick={add}><Plus size={14} /> افزودن تمپلیت</button>
@@ -490,8 +539,10 @@ function SettingsPanel({ orbits, labelFont, anim, updateSetting, onClose }) {
   );
 }
 
-function NodeEditor({ p, templates, onPatch, onSave, onEnter, onDelete, onClose }) {
+function NodeEditor({ p, templates, onPatch, onSave, onEnter, onDelete, onDuplicate, onClose }) {
   const font = p.node_font || 12;
+  const [dupTarget, setDupTarget] = useState("");
+  const [duping, setDuping] = useState(false);
   return (
     <Panel title="ویرایش فعالیت" onClose={onClose}>
       <div className="dp-row">
@@ -529,6 +580,26 @@ function NodeEditor({ p, templates, onPatch, onSave, onEnter, onDelete, onClose 
           <Bold size={14} /> توپر
         </button>
       </div>
+
+      <div className="ne-duplicate">
+        <span className="dp-lbl">کپی کامل این فعالیت به تمپلیت دیگر</span>
+        <div className="dp-row">
+          <select className="full-select" value={dupTarget} onChange={(e) => setDupTarget(e.target.value)}>
+            <option value="">— بدون تمپلیت —</option>
+            {templates.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+          </select>
+          <button className="btn light sm" disabled={duping}
+            onClick={async () => {
+              setDuping(true);
+              try { await onDuplicate(dupTarget || null); }
+              finally { setDuping(false); }
+            }}>
+            <Copy size={13} /> {duping ? "در حال کپی…" : "کپی کامل فعالیت"}
+          </button>
+        </div>
+        <span className="muted-sm">همهٔ آثار، آمارها، کلیدواژه‌ها و بازدیدها هم کپی می‌شوند؛ خودِ این فعالیت دست‌نخورده می‌ماند.</span>
+      </div>
+
       <div className="dp-actions ne-actions">
         <button className="btn ghost sm danger" onClick={onDelete}><Trash2 size={14} /> حذف</button>
         <button className="btn ghost sm" onClick={onEnter}><LogIn size={14} /> ورود به صفحه</button>

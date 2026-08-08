@@ -127,6 +127,11 @@ addCol("projects", "template_id", "INTEGER");
 addCol("projects", "end_date", "TEXT");
 addCol("stats", "descr", "TEXT");
 addCol("works", "featured", "INTEGER DEFAULT 0");
+addCol("work_platform_views", "likes", "INTEGER DEFAULT 0");
+addCol("work_platform_views", "comments", "INTEGER DEFAULT 0");
+addCol("platforms", "logo_url", "TEXT");
+addCol("templates", "theme", "TEXT DEFAULT 'orbit'");
+addCol("templates", "font", "TEXT DEFAULT 'Vazirmatn'");
 
 /* one-time addition of "screenshot" / "link" work types (existing installs already seeded) */
 const typesV2 = db.prepare("SELECT value FROM settings WHERE key='types_v2_seeded'").get();
