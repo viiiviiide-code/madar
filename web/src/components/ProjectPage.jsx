@@ -2,11 +2,22 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ChevronRight, Plus, Trash2, MoveRight, MoveLeft, Search, ArrowUpDown,
   Upload, Play, Maximize2, Minimize2, LayoutGrid, List as ListIcon, Eye, RefreshCw, X,
-  RotateCcw, Volume2, VolumeX, Film, Info, Star, Copy, Link2, Camera,
+  RotateCcw, Volume2, VolumeX, Film, Info, Star, Copy, Link2, Camera, Save,
 } from "lucide-react";
 import { api } from "../api";
 import { formatJalali, toFa, jalaliToISO, isValidISO } from "../jalali";
 import KeywordInput from "./KeywordInput.jsx";
+
+/* tiny localStorage-backed draft helper so a mid-typing refresh doesn't lose form data */
+function loadWorkDraft(key) {
+  try { return JSON.parse(localStorage.getItem(key) || "null"); } catch { return null; }
+}
+function saveWorkDraft(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+}
+function clearWorkDraft(key) {
+  try { localStorage.removeItem(key); } catch {}
+}
 import JalaliInput from "./JalaliInput.jsx";
 import * as XLSX from "xlsx";
 
@@ -475,18 +486,20 @@ export function gradFor(seed) {
 
 /* ---- add work + Excel import ---- */
 function AddWork({ projectId, types, reloadMeta, onAdded, copyFrom, onClose }) {
+  const DRAFT_KEY = `madar_draft_work_${projectId}`;
+  const savedDraft = !copyFrom ? loadWorkDraft(DRAFT_KEY) : null;
   const [tab, setTab] = useState("manual"); // "manual" | "excel"
   const [f, setF] = useState(() => copyFrom ? {
     type: copyFrom.type, title: copyFrom.title + " (کپی)", axis: copyFrom.axis || "",
     campaign: copyFrom.campaign || "", descr: copyFrom.descr || "",
     event_date: copyFrom.event_date || null, keywords: copyFrom.keywords || [],
     url: null, featured: 0,
-  } : {
+  } : (savedDraft?.f || {
     type: types[0]?.key || "video", title: "", axis: "", campaign: "",
     descr: "", event_date: null, keywords: [], url: null, featured: 0,
-  });
+  }));
   const [fileName,  setFileName]  = useState("");
-  const [mediaList, setMediaList] = useState([]);   // [{url, kind, name}]
+  const [mediaList, setMediaList] = useState(() => (!copyFrom && savedDraft?.mediaList) || []);   // [{url, kind, name}]
   const [uploading, setUploading] = useState(false);
   const [uploadPct, setUploadPct] = useState(null);
   const [addType,   setAddType]   = useState(false);
@@ -498,6 +511,12 @@ function AddWork({ projectId, types, reloadMeta, onAdded, copyFrom, onClose }) {
   const [linkUrl, setLinkUrl] = useState("");
   const fileRef    = useRef(null);
   const excelRef   = useRef(null);
+
+  // persist as a draft on every change (skipped entirely for the "copy" flow)
+  useEffect(() => {
+    if (copyFrom) return;
+    saveWorkDraft(DRAFT_KEY, { f, mediaList });
+  }, [f, mediaList, copyFrom]);
 
   useEffect(() => {
     api.fieldValues("axis").then((v) => setAxisList(Array.isArray(v) ? v : [])).catch(() => {});
@@ -543,6 +562,7 @@ function AddWork({ projectId, types, reloadMeta, onAdded, copyFrom, onClose }) {
   const submit = async () => {
     const media = mediaList.map(({ url, kind }) => ({ url, kind }));
     await api.addWork({ ...f, project_id: projectId, media, url: media[0]?.url || f.url || null });
+    clearWorkDraft(DRAFT_KEY);
     onAdded();
   };
 
@@ -626,6 +646,16 @@ function AddWork({ projectId, types, reloadMeta, onAdded, copyFrom, onClose }) {
         <div className="copy-banner">
           <Copy size={13} /> اطلاعات از «{copyFrom.title}» کپی شد — فقط فایل جدید اضافه کن.
           {onClose && <button className="x-btn" onClick={onClose}><X size={13} /></button>}
+        </div>
+      )}
+      {!copyFrom && savedDraft?.f?.title && (
+        <div className="copy-banner draft-banner">
+          <Save size={13} /> پیش‌نویس قبلی بازیابی شد.
+          <button className="x-btn draft-discard" onClick={() => {
+            clearWorkDraft(DRAFT_KEY);
+            setF({ type: types[0]?.key || "video", title: "", axis: "", campaign: "", descr: "", event_date: null, keywords: [], url: null, featured: 0 });
+            setMediaList([]);
+          }}>شروع از نو</button>
         </div>
       )}
       <div className="af-tabs">
