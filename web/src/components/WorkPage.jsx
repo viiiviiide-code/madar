@@ -88,14 +88,17 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
     else el.requestFullscreen?.();
   };
 
-  /* gallery (multi-file) — kind resolved by file extension for reliable playback */
+  /* gallery (multi-file) — kind resolved by file extension for reliable playback.
+     Links are shown separately (a standalone button), never mixed into the image/video album. */
   const rawGallery = (work.media && work.media.length)
     ? work.media
     : (work.url ? [{ url: work.url, kind: work.type }] : []);
-  const gallery = rawGallery.map((m) => ({ ...m, kind: mediaKind(m.url, m.kind) }));
+  const fullGallery = rawGallery.map((m) => ({ ...m, kind: mediaKind(m.url, m.kind) }));
+  const links = fullGallery.filter((m) => m.kind === "link");
+  const gallery = fullGallery.filter((m) => m.kind !== "link");
   const curIdx = gallery.length ? Math.min(activeIdx, gallery.length - 1) : 0;
   const item = gallery[curIdx] || null;
-  const isImg = item && item.kind !== "video" && item.kind !== "audio" && item.kind !== "link";
+  const isImg = item && item.kind !== "video" && item.kind !== "audio";
   const goRel = (delta) => {
     if (gallery.length < 2) return;
     setActiveIdx((i) => {
@@ -208,14 +211,14 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
         {/* media stage (gallery-aware) */}
         <div className="work-media-col">
           <div className={`work-stage ${isImg ? "is-image" : ""}`} ref={stageRef}>
-            {!item && <Media work={work} big />}
-            {item && item.kind === "link" && (
-              <a className="media media-ph media-link" href={item.url} target="_blank" rel="noreferrer"
+            {!item && links.length > 0 && (
+              <a className="media media-ph media-link" href={links[0].url} target="_blank" rel="noreferrer"
                 style={{ background: gradFor(work.id) }}>
                 <Link2 size={40} strokeWidth={1.4} />
-                <span className="media-link-t">{linkHost(item.url)}</span>
+                <span className="media-link-t">{linkHost(links[0].url)}</span>
               </a>
             )}
+            {!item && links.length === 0 && <Media work={work} big />}
             {item && item.kind === "video" && (
               <div className="media-wrap media-wrap-big">
                 <video key={item.url} className="media media-contain" src={item.url} controls autoPlay playsInline />
@@ -264,11 +267,20 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
                     ? <VideoThumb url={m.url} className="gs-img" />
                     : m.kind === "audio"
                       ? <span className="gs-icon">🎵</span>
-                      : m.kind === "link"
-                        ? <span className="gs-icon"><Link2 size={16} /></span>
-                        : <img className="gs-img" src={m.url} alt="" />}
+                      : <img className="gs-img" src={m.url} alt="" />}
                   {m.kind === "video" && <span className="gs-play">▶</span>}
                 </button>
+              ))}
+            </div>
+          )}
+
+          {/* standalone link buttons — shown separately from the media album, never mixed into it */}
+          {gallery.length > 0 && links.length > 0 && (
+            <div className="work-links-row">
+              {links.map((l, i) => (
+                <a key={i} className="work-link-btn" href={l.url} target="_blank" rel="noreferrer">
+                  <Link2 size={14} /> {linkHost(l.url)}
+                </a>
               ))}
             </div>
           )}
@@ -286,7 +298,8 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
                 <div className="link-add">
                   <input placeholder="آدرس لینک (اسکرین‌شات/لینک خارجی)" value={linkUrl}
                     onChange={(e) => setLinkUrl(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && addDraftLink()} />
+                    onKeyDown={(e) => e.key === "Enter" && addDraftLink()}
+                    onBlur={addDraftLink} />
                   <button className="mini" onClick={addDraftLink} title="افزودن لینک"><Link2 size={14} /></button>
                 </div>
               </div>
@@ -410,31 +423,33 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
                     const on = p.id in pvMap;
                     const pv = pvMap[p.id] || {};
                     return (
-                      <div key={p.id} className={`pv-row ${on ? "on" : ""}`}>
-                        <label className="pv-plabel">
-                          <input type="checkbox" checked={on}
+                      <div key={p.id} className={`pv-card ${on ? "on" : ""}`}>
+                        <label className="pv-card-head">
+                          <input type="checkbox" className="pv-check" checked={on}
                             onChange={(e) => togglePlatform(p.id, e.target.checked)} />
-                          {p.logo_url
-                            ? <img className="plat-logo" src={p.logo_url} alt="" />
-                            : <span className="plat-logo ph">{p.label?.[0] || "?"}</span>}
-                          {p.label}
-                          <label className="plat-logo-edit" title="تغییر لوگو">
-                            <Camera size={12} />
-                            <input type="file" hidden accept="image/*"
-                              onChange={(e) => uploadPlatformLogo(p.id, e.target.files?.[0])} />
-                          </label>
+                          <span className="plat-logo-wrap">
+                            {p.logo_url
+                              ? <img className="plat-logo" src={p.logo_url} alt="" />
+                              : <span className="plat-logo ph">{p.label?.[0] || "?"}</span>}
+                            <label className="plat-logo-edit" title="تغییر لوگو" onClick={(e) => e.stopPropagation()}>
+                              <Camera size={11} />
+                              <input type="file" hidden accept="image/*"
+                                onChange={(e) => uploadPlatformLogo(p.id, e.target.files?.[0])} />
+                            </label>
+                          </span>
+                          <span className="pv-plabel-t">{p.label}</span>
                         </label>
                         {on && (
                           <div className="pv-nums">
-                            <label className="pv-num-lbl"><Eye size={12} />
+                            <label className="pv-num-lbl"><Eye size={13} />
                               <input className="pv-num" type="number" value={pv.views || 0}
                                 onChange={(e) => setPVField(p.id, "views", e.target.value)} />
                             </label>
-                            <label className="pv-num-lbl"><Heart size={12} />
+                            <label className="pv-num-lbl"><Heart size={13} />
                               <input className="pv-num" type="number" value={pv.likes || 0}
                                 onChange={(e) => setPVField(p.id, "likes", e.target.value)} />
                             </label>
-                            <label className="pv-num-lbl"><MessageCircle size={12} />
+                            <label className="pv-num-lbl"><MessageCircle size={13} />
                               <input className="pv-num" type="number" value={pv.comments || 0}
                                 onChange={(e) => setPVField(p.id, "comments", e.target.value)} />
                             </label>
@@ -471,13 +486,19 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
                     ? <span className="muted-sm">ثبت نشده</span>
                     : work.platformViews.map((pv) => (
                       <div key={pv.platform_id} className="pv-chip">
-                        {pv.logo_url
-                          ? <img className="plat-logo sm" src={pv.logo_url} alt="" />
-                          : null}
-                        <span>{pv.label}</span>
-                        <b><Eye size={11} /> {fmtNum(pv.views)}</b>
-                        {!!pv.likes && <b><Heart size={11} /> {fmtNum(pv.likes)}</b>}
-                        {!!pv.comments && <b><MessageCircle size={11} /> {fmtNum(pv.comments)}</b>}
+                        <span className="plat-logo-wrap sm">
+                          {pv.logo_url
+                            ? <img className="plat-logo" src={pv.logo_url} alt="" />
+                            : <span className="plat-logo ph">{pv.label?.[0] || "?"}</span>}
+                        </span>
+                        <div className="pv-chip-body">
+                          <span className="pv-chip-name">{pv.label}</span>
+                          <div className="pv-chip-stats">
+                            <b><Eye size={12} /> {fmtNum(pv.views)}</b>
+                            {!!pv.likes && <b><Heart size={12} /> {fmtNum(pv.likes)}</b>}
+                            {!!pv.comments && <b><MessageCircle size={12} /> {fmtNum(pv.comments)}</b>}
+                          </div>
+                        </div>
                       </div>
                     ))}
                 </div>
