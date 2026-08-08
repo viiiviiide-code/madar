@@ -23,6 +23,7 @@ export const TEMPLATE_THEMES = [
 export default function Home({
   settings, updateSetting, admin, mode, setMode,
   templates, reloadTemplates, homeTool, setHomeTool, openProject, openSidebar,
+  onProjectsChanged,
 }) {
   const orbits = Math.max(1, +(settings.orbits || 3));
   const labelFont = +(settings.range_label_font || 13);
@@ -153,6 +154,7 @@ export default function Home({
     await api.addProject(payload);
     setHomeTool(null);
     await load();
+    onProjectsChanged?.();
     flash("فعالیت ثبت شد ✓");
   };
 
@@ -219,6 +221,16 @@ export default function Home({
         </div>
       )}
 
+      {/* template header bar — only in template mode, gives a quick "new activity" shortcut */}
+      {isTemplate && admin && (
+        <div className="daterange-bar template-bar">
+          <span className="drb-label">{activeTemplate?.label || "تمپلیت"}</span>
+          <button className="btn gold sm" onClick={() => setHomeTool("define")}>
+            <Plus size={14} /> فعالیت جدید
+          </button>
+        </div>
+      )}
+
       {/* admin tool panels (opened from sidebar) */}
       {admin && homeTool === "define" && (
         <DefineProject
@@ -250,12 +262,21 @@ export default function Home({
         <NodeEditor
           p={editing} templates={templates}
           onPatch={(patch) => patchLocal(editing.id, patch)}
-          onSave={async () => { await persist(editing.id); await load(); flash("ذخیره شد ✓"); setEditId(null); }}
+          onSave={async () => { await persist(editing.id); await load(); onProjectsChanged?.(); flash("ذخیره شد ✓"); setEditId(null); }}
           onEnter={() => openProject(editing.id)}
-          onDelete={async () => { if (confirm("حذف این فعالیت؟")) { await api.delProject(editing.id); setEditId(null); load(); } }}
+          onDelete={async () => {
+            if (confirm("حذف این فعالیت؟")) {
+              await api.delProject(editing.id);
+              setEditId(null);
+              await load();
+              onProjectsChanged?.();
+              flash("فعالیت حذف شد ✓");
+            }
+          }}
           onDuplicate={async (targetTemplateId) => {
             await api.duplicateProject(editing.id, targetTemplateId || null);
             await reloadTemplates(); await load();
+            onProjectsChanged?.();
             flash("فعالیت به‌طور کامل کپی شد ✓");
             setEditId(null);
           }}
@@ -324,13 +345,6 @@ export default function Home({
               )}
             </div>
           ))}
-
-          {projects.length === 0 && (
-            <div className="empty-orbit">
-              {isTemplate ? "این تمپلیت هنوز فعالیتی ندارد." : "در این بازهٔ زمانی فعالیتی نیست."}
-              {admin && <div className="muted-sm">از منو، «تعریف فعالیت» را بزن.</div>}
-            </div>
-          )}
         </div>
       </div>
     </main>

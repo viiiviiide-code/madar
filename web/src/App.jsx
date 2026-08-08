@@ -51,7 +51,8 @@ export default function App() {
   const [sidebar, setSidebar] = useState(false);
   const [mode, setMode] = useState({ type: "date" });   // {type:'date'} | {type:'template', id, label}
   const [homeTool, setHomeTool] = useState(null);        // null|'define'|'template'|'settings'
-  const [actOpen, setActOpen] = useState(true);          // activities list collapsed/expanded
+  const [actOpen, setActOpen] = useState(true);          // "untemplated" activities list collapsed/expanded
+  const [expandedTpl, setExpandedTpl] = useState({});    // per-template nested-activities expand state
   const popping = useRef(false);
 
   useEffect(() => {
@@ -107,6 +108,14 @@ export default function App() {
   const pickTemplate = (t) => { setMode({ type: "template", id: t.id, label: t.label }); setHomeTool(null); setSidebar(false); go({ name: "home" }); };
   const openTool = (tool) => { setHomeTool(tool); setSidebar(false); go({ name: "home" }); };
   const openActivity = (p) => { setSidebar(false); go({ name: "project", id: p.id }); };
+  const newActivityInTemplate = (t) => {
+    setMode({ type: "template", id: t.id, label: t.label });
+    setHomeTool("define"); setSidebar(false); go({ name: "home" });
+  };
+  const newActivityUntemplated = () => {
+    setMode({ type: "date" });
+    setHomeTool("define"); setSidebar(false); go({ name: "home" });
+  };
 
   if (!user) return <Login onLogin={setUser} />;
   if (!settings) return <div className="app loading">در حال بارگذاری…</div>;
@@ -148,23 +157,51 @@ export default function App() {
             </button>
           </div>
 
-          {/* templates / labels — list + "new template" live together */}
+          {/* templates / labels — each template's own activities nest right under it */}
           <div className="sb-section">
             <div className="sb-section-t">تمپلیت‌ها (هسته‌ها)</div>
             {templates.length === 0 && <p className="sb-empty">تمپلیتی تعریف نشده.</p>}
-            {templates.map((t) => (
-              <button key={t.id}
-                className={`sb-item ${mode.type === "template" && mode.id === t.id ? "active" : ""}`}
-                onClick={() => pickTemplate(t)}>
-                <Layers size={16} className="sb-ic" />
-                <span className="sb-title">{t.label}</span>
-                <span className="sb-badge">{t.count ?? 0}</span>
-                <span className="sb-star" title="آثار شاخص این تمپلیت"
-                  onClick={(e) => { e.stopPropagation(); setSidebar(false); go({ name: "featured", tid: t.id, label: t.label }); }}>
-                  <Star size={13} />
-                </span>
-              </button>
-            ))}
+            {templates.map((t) => {
+              const tplActs = allProjects.filter((p) => String(p.template_id || "") === String(t.id));
+              const open = !!expandedTpl[t.id];
+              return (
+                <div key={t.id} className="sb-tpl-group">
+                  <div className={`sb-item sb-tpl-row ${mode.type === "template" && mode.id === t.id ? "active" : ""}`}>
+                    <button className="sb-tpl-chevron" onClick={() => setExpandedTpl((e) => ({ ...e, [t.id]: !open }))}
+                      title={open ? "بستن فعالیت‌ها" : "نمایش فعالیت‌ها"}>
+                      <ChevronDown size={13} className={`sb-chevron ${open ? "open" : ""}`} />
+                    </button>
+                    <button className="sb-tpl-main" onClick={() => pickTemplate(t)}>
+                      <Layers size={16} className="sb-ic" />
+                      <span className="sb-title">{t.label}</span>
+                      <span className="sb-badge">{t.count ?? 0}</span>
+                    </button>
+                    <span className="sb-star" title="آثار شاخص این تمپلیت"
+                      onClick={(e) => { e.stopPropagation(); setSidebar(false); go({ name: "featured", tid: t.id, label: t.label }); }}>
+                      <Star size={13} />
+                    </span>
+                  </div>
+                  {open && (
+                    <div className="sb-tpl-nested">
+                      {tplActs.length === 0 && <p className="sb-empty sm">فعالیتی ثبت نشده.</p>}
+                      {tplActs.map((p) => (
+                        <button key={p.id} className="sb-item nested" onClick={() => openActivity(p)}>
+                          <Circle size={8} className="sb-dot" />
+                          <span className="sb-title">{p.title}</span>
+                          <span className="sb-date">{p.start_date ? formatJalaliMonth(p.start_date) : "—"}</span>
+                        </button>
+                      ))}
+                      {admin && (
+                        <button className="sb-item nested sb-new" onClick={() => newActivityInTemplate(t)}>
+                          <Plus size={14} className="sb-ic" />
+                          <span className="sb-title">+ فعالیت جدید در این تمپلیت</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
             {admin && (
               <button className={`sb-item sb-new ${homeTool === "template" ? "active" : ""}`}
                 onClick={() => openTool("template")}>
@@ -174,17 +211,17 @@ export default function App() {
             )}
           </div>
 
-          {/* activities (collapsible) — list + "new activity" live together */}
+          {/* activities without a template (date-mode) — list + "new activity" live together */}
           <div className="sb-section">
             <button className="sb-section-t collapsible" onClick={() => setActOpen((v) => !v)}>
               <ChevronDown size={14} className={`sb-chevron ${actOpen ? "open" : ""}`} />
-              فعالیت‌ها
-              <span className="sb-count">{allProjects.length}</span>
+              فعالیت‌های بدون تمپلیت
+              <span className="sb-count">{allProjects.filter((p) => !p.template_id).length}</span>
             </button>
             {actOpen && (
               <>
-                {allProjects.length === 0 && <p className="sb-empty">فعالیتی ثبت نشده.</p>}
-                {allProjects.map((p) => (
+                {allProjects.filter((p) => !p.template_id).length === 0 && <p className="sb-empty">فعالیتی ثبت نشده.</p>}
+                {allProjects.filter((p) => !p.template_id).map((p) => (
                   <button key={p.id} className="sb-item" onClick={() => openActivity(p)}>
                     <Circle size={9} className="sb-dot" />
                     <span className="sb-title">{p.title}</span>
@@ -192,8 +229,8 @@ export default function App() {
                   </button>
                 ))}
                 {admin && (
-                  <button className={`sb-item sb-new ${homeTool === "define" ? "active" : ""}`}
-                    onClick={() => openTool("define")}>
+                  <button className={`sb-item sb-new ${homeTool === "define" && mode.type !== "template" ? "active" : ""}`}
+                    onClick={newActivityUntemplated}>
                     <Plus size={16} className="sb-ic" />
                     <span className="sb-title">+ فعالیت جدید</span>
                   </button>
@@ -245,6 +282,7 @@ export default function App() {
             homeTool={homeTool} setHomeTool={setHomeTool}
             openProject={(id) => go({ name: "project", id })}
             openSidebar={() => setSidebar(true)}
+            onProjectsChanged={() => { loadProjects(); loadTemplates(); }}
           />
         )}
 
