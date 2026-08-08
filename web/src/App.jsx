@@ -1,13 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   Settings, Menu, X, Sun, Moon, Circle, CalendarRange, Layers,
-  Plus, SlidersHorizontal, FolderPlus, ChevronLeft, ChevronDown, LogOut,
+  Plus, SlidersHorizontal, FolderPlus, ChevronLeft, ChevronDown, LogOut, Star,
 } from "lucide-react";
 import { api, auth, setUnauthorizedHandler } from "./api";
 import { formatJalaliMonth, isoToJalali } from "./jalali";
 import Home from "./components/Home.jsx";
 import ProjectPage from "./components/ProjectPage.jsx";
 import WorkPage from "./components/WorkPage.jsx";
+import FeaturedWorks from "./components/FeaturedWorks.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import Login from "./components/Login.jsx";
 
@@ -22,6 +23,9 @@ function viewFromLocation() {
   if (name === "work" && qs.get("id") && qs.get("workId")) {
     return { name: "work", id: qs.get("id"), workId: qs.get("workId") };
   }
+  if (name === "featured" && qs.get("tid")) {
+    return { name: "featured", tid: qs.get("tid"), label: qs.get("label") || "" };
+  }
   return { name: "home" };
 }
 function locationFromView(v) {
@@ -29,6 +33,7 @@ function locationFromView(v) {
   qs.set("v", v.name || "home");
   if (v.name === "project" && v.id) { qs.set("id", v.id); if (v.q) qs.set("q", v.q); }
   if (v.name === "work" && v.id && v.workId) { qs.set("id", v.id); qs.set("workId", v.workId); }
+  if (v.name === "featured" && v.tid) { qs.set("tid", v.tid); if (v.label) qs.set("label", v.label); }
   return "?" + qs.toString();
 }
 
@@ -154,6 +159,10 @@ export default function App() {
                 <Layers size={16} className="sb-ic" />
                 <span className="sb-title">{t.label}</span>
                 <span className="sb-badge">{t.count ?? 0}</span>
+                <span className="sb-star" title="آثار شاخص این تمپلیت"
+                  onClick={(e) => { e.stopPropagation(); setSidebar(false); go({ name: "featured", tid: t.id, label: t.label }); }}>
+                  <Star size={13} />
+                </span>
               </button>
             ))}
             {admin && (
@@ -225,7 +234,7 @@ export default function App() {
       </aside>
 
       <ErrorBoundary
-        key={view.name + ":" + (view.id || "") + ":" + (view.workId || "")}
+        key={view.name + ":" + (view.id || "") + ":" + (view.workId || "") + ":" + (view.tid || "")}
         onReset={() => go({ name: "home" })}
       >
         {view.name === "home" && (
@@ -256,6 +265,14 @@ export default function App() {
             goBack={() => go({ name: "project", id: view.id })}
             openWork={(workId) => go({ name: "work", id: view.id, workId })}
             openProjectWithQuery={(q) => go({ name: "project", id: view.id, q })}
+          />
+        )}
+
+        {view.name === "featured" && (
+          <FeaturedWorks
+            templateId={view.tid} templateLabel={view.label}
+            goBack={() => go({ name: "home" })}
+            openWork={(projectId, workId) => go({ name: "work", id: projectId, workId })}
           />
         )}
       </ErrorBoundary>

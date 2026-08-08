@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronRight, ChevronLeft, Maximize2, Eye, Plus, X, Save, Check, Trash2 } from "lucide-react";
+import { ChevronRight, ChevronLeft, Maximize2, Eye, Plus, X, Save, Check, Trash2, Star, Link2 } from "lucide-react";
 import { api } from "../api";
 import { formatJalali, toFa, jalaliToISO } from "../jalali";
 import JalaliInput from "./JalaliInput.jsx";
 import KeywordInput from "./KeywordInput.jsx";
-import { Media, gradFor, VideoThumb, mediaKind } from "./ProjectPage.jsx";
+import { Media, gradFor, VideoThumb, mediaKind, linkHost } from "./ProjectPage.jsx";
 
 /* compact number display */
 function fmtNum(n) {
@@ -91,7 +91,7 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
   const gallery = rawGallery.map((m) => ({ ...m, kind: mediaKind(m.url, m.kind) }));
   const curIdx = gallery.length ? Math.min(activeIdx, gallery.length - 1) : 0;
   const item = gallery[curIdx] || null;
-  const isImg = item && item.kind !== "video" && item.kind !== "audio";
+  const isImg = item && item.kind !== "video" && item.kind !== "audio" && item.kind !== "link";
   const goRel = (delta) => {
     if (gallery.length < 2) return;
     setActiveIdx((i) => {
@@ -127,6 +127,7 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
         event_date: draft.event_date,
         type:       draft.type,
         keywords:   draft.keywords,
+        featured:   draft.featured ? 1 : 0,
         platformViews: draft.platformViews,
         media:      draft.media || [],
       });
@@ -149,6 +150,8 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
     setNewPlatform("");
   };
 
+  const [uploadPct, setUploadPct] = useState(null);
+  const [linkUrl, setLinkUrl] = useState("");
   const kindOf = (file) => {
     const t = file.type || "";
     if (t.startsWith("video")) return "video";
@@ -159,13 +162,22 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
   const onAddFiles = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
-    const added = [];
-    for (const file of files) {
-      try { const { url } = await api.upload(file); if (url) added.push({ url, kind: kindOf(file) }); }
-      catch (err) {}
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      setUploadPct({ i: i + 1, n: files.length, pct: 0 });
+      try {
+        const { url } = await api.uploadWithProgress(file, (pct) => setUploadPct({ i: i + 1, n: files.length, pct }));
+        if (url) setDraft((d) => ({ ...d, media: [...(d.media || []), { url, kind: kindOf(file) }] }));
+      } catch (err) {}
     }
-    setDraft((d) => ({ ...d, media: [...(d.media || []), ...added] }));
+    setUploadPct(null);
     if (mediaFileRef.current) mediaFileRef.current.value = "";
+  };
+  const addDraftLink = () => {
+    const u = linkUrl.trim();
+    if (!u) return;
+    setDraft((d) => ({ ...d, media: [...(d.media || []), { url: u, kind: "link" }] }));
+    setLinkUrl("");
   };
   const removeDraftMedia = (i) =>
     setDraft((d) => ({ ...d, media: (d.media || []).filter((_, j) => j !== i) }));
@@ -181,6 +193,13 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
         <div className="work-media-col">
           <div className={`work-stage ${isImg ? "is-image" : ""}`} ref={stageRef}>
             {!item && <Media work={work} big />}
+            {item && item.kind === "link" && (
+              <a className="media media-ph media-link" href={item.url} target="_blank" rel="noreferrer"
+                style={{ background: gradFor(work.id) }}>
+                <Link2 size={40} strokeWidth={1.4} />
+                <span className="media-link-t">{linkHost(item.url)}</span>
+              </a>
+            )}
             {item && item.kind === "video" && (
               <div className="media-wrap media-wrap-big">
                 <video key={item.url} className="media media-contain" src={item.url} controls autoPlay playsInline />
@@ -229,7 +248,9 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
                     ? <VideoThumb url={m.url} className="gs-img" />
                     : m.kind === "audio"
                       ? <span className="gs-icon">🎵</span>
-                      : <img className="gs-img" src={m.url} alt="" />}
+                      : m.kind === "link"
+                        ? <span className="gs-icon"><Link2 size={16} /></span>
+                        : <img className="gs-img" src={m.url} alt="" />}
                   {m.kind === "video" && <span className="gs-play">▶</span>}
                 </button>
               ))}
@@ -246,13 +267,29 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
                 </button>
                 <input ref={mediaFileRef} type="file" hidden multiple
                   accept="image/*,video/*,audio/*" onChange={onAddFiles} />
+                <div className="link-add">
+                  <input placeholder="آدرس لینک (اسکرین‌شات/لینک خارجی)" value={linkUrl}
+                    onChange={(e) => setLinkUrl(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && addDraftLink()} />
+                  <button className="mini" onClick={addDraftLink} title="افزودن لینک"><Link2 size={14} /></button>
+                </div>
               </div>
+              {uploadPct && (
+                <div className="upload-progress">
+                  <div className="upload-progress-bar" style={{ width: uploadPct.pct + "%" }} />
+                  <span className="upload-progress-t">
+                    فایل {toFa(uploadPct.i)} از {toFa(uploadPct.n)} — {toFa(uploadPct.pct)}٪
+                  </span>
+                </div>
+              )}
               <div className="ga-list">
                 {(draft.media || []).map((m, i) => (
                   <div key={i} className="ga-item">
                     {m.kind === "image"
                       ? <img src={m.url} alt="" />
-                      : <span className="ga-icon">{m.kind === "video" ? "🎬" : "🎵"}</span>}
+                      : m.kind === "link"
+                        ? <span className="ga-icon"><Link2 size={16} /></span>
+                        : <span className="ga-icon">{m.kind === "video" ? "🎬" : "🎵"}</span>}
                     <button className="mt-del" onClick={() => removeDraftMedia(i)} title="حذف"><X size={12} /></button>
                   </div>
                 ))}
@@ -267,7 +304,17 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
 
         {/* info aside */}
         <aside className="work-info">
-          <span className="chip">{work.type}</span>
+          <div className="wi-top">
+            <span className="chip">{work.type}</span>
+            {admin && (
+              <button className={`card-star ${draft.featured ? "on" : ""}`}
+                title={draft.featured ? "حذف از آثار شاخص" : "علامت‌گذاری به‌عنوان اثر شاخص"}
+                onClick={() => setDraft({ ...draft, featured: draft.featured ? 0 : 1 })}>
+                <Star size={15} fill={draft.featured ? "currentColor" : "none"} /> اثر شاخص
+              </button>
+            )}
+            {!admin && work.featured ? <span className="featured-badge"><Star size={13} fill="currentColor" /> اثر شاخص</span> : null}
+          </div>
 
           {admin
             ? <input className="ed h1-ed" value={draft.title}

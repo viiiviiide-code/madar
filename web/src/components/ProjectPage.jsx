@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ChevronRight, Plus, Trash2, MoveRight, MoveLeft, Search, ArrowUpDown,
   Upload, Play, Maximize2, Minimize2, LayoutGrid, List as ListIcon, Eye, RefreshCw, X,
-  RotateCcw, Volume2, VolumeX, Film,
+  RotateCcw, Volume2, VolumeX, Film, Info, Star, Copy, Link2, Camera,
 } from "lucide-react";
 import { api } from "../api";
 import { formatJalali, toFa, jalaliToISO, isValidISO } from "../jalali";
@@ -10,7 +10,7 @@ import KeywordInput from "./KeywordInput.jsx";
 import JalaliInput from "./JalaliInput.jsx";
 import * as XLSX from "xlsx";
 
-const ICONS = { video: Play, poster: Maximize2, image: LayoutGrid, audio: Eye };
+const ICONS = { video: Play, poster: Maximize2, image: LayoutGrid, audio: Eye, screenshot: Camera, link: Link2 };
 
 /* ---- compact number: 420000 → ۴۲۰ هزار, 1200000 → ۱.۲ میلیون ---- */
 function fmtNum(n) {
@@ -29,6 +29,9 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
   const [viewMode,setViewMode]= useState("list");
   const [addOpen, setAddOpen] = useState(false);
   const [refresh, setRefresh] = useState(0);
+  const [statLabels, setStatLabels] = useState([]);
+  const [openStat, setOpenStat] = useState(null);
+  const [copySource, setCopySource] = useState(null);
   const teaserRef  = useRef(null);
   const videoRef   = useRef(null);
   const stageRef   = useRef(null);
@@ -52,6 +55,7 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
 
   useEffect(() => { loadProject(); }, [projectId, refresh]);
   useEffect(() => { loadWorks(); },  [projectId, type, q, sort, refresh]);
+  useEffect(() => { if (admin) api.statLabels().then((v) => setStatLabels(Array.isArray(v) ? v : [])).catch(() => {}); }, [admin]);
 
   // fullscreen change listener
   useEffect(() => {
@@ -153,11 +157,14 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
           <h2>آمار پروژه</h2>
           {admin && (
             <button className="btn ghost sm"
-              onClick={() => setStats([...project.stats, { label: "عنوان آمار", value: "۰" }])}>
+              onClick={() => setStats([...project.stats, { label: "عنوان آمار", value: "۰", descr: "" }])}>
               <Plus size={14} /> افزودن فیلد
             </button>
           )}
         </div>
+        <datalist id="stat-label-options">
+          {statLabels.map((v) => <option key={v} value={v} />)}
+        </datalist>
         <div className="stats-row centered">
           {project.stats.map((s, i) => (
             <div className="stat-card" key={i}>
@@ -165,8 +172,10 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
                 <>
                   <input className="stat-val-in" value={s.value}
                     onChange={(e) => setStats(project.stats.map((x, j) => j === i ? { ...x, value: e.target.value } : x))} />
-                  <input className="stat-lbl-in" value={s.label}
+                  <input className="stat-lbl-in" value={s.label} list="stat-label-options"
                     onChange={(e) => setStats(project.stats.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} />
+                  <input className="stat-descr-in" placeholder="توضیح (اختیاری)" value={s.descr || ""}
+                    onChange={(e) => setStats(project.stats.map((x, j) => j === i ? { ...x, descr: e.target.value } : x))} />
                   <div className="stat-tools">
                     <button disabled={i === 0}
                       onClick={() => { const a=[...project.stats];[a[i-1],a[i]]=[a[i],a[i-1]];setStats(a); }}>
@@ -182,10 +191,19 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
                   </div>
                 </>
               ) : (
-                <>
+                <button type="button" className="stat-card-view"
+                  disabled={!s.descr}
+                  title={s.descr || ""}
+                  onClick={() => s.descr && setOpenStat(openStat === i ? null : i)}>
                   <span className="stat-val">{s.value}</span>
                   <span className="stat-lbl">{s.label}</span>
-                </>
+                  {s.descr && (
+                    <>
+                      <Info size={12} className="stat-info-ic" />
+                      {openStat === i && <span className="stat-descr-pop">{s.descr}</span>}
+                    </>
+                  )}
+                </button>
               )}
             </div>
           ))}
@@ -207,11 +225,14 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
         {addOpen && admin && (
           <AddWork
             projectId={project.id} types={types} reloadMeta={reloadMeta}
+            copyFrom={copySource}
             onAdded={() => {
               setAddOpen(false);
+              setCopySource(null);
               setQ(""); setType("all"); setSort("new"); setViewMode("list");
               setRefresh((x) => x + 1);   // force refetch even if filters unchanged
             }}
+            onClose={() => { setAddOpen(false); setCopySource(null); }}
           />
         )}
 
@@ -252,15 +273,25 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
         {viewMode === "grid" ? (
           <div className="works-grid">
             {works.map((w) => (
-              <div key={w.id} className="work-card" onClick={() => openWork(w.id)} role="button" tabIndex={0}>
+              <div key={w.id} className={`work-card ${w.featured ? "is-featured" : ""}`} onClick={() => openWork(w.id)} role="button" tabIndex={0}>
                 {admin && (
-                  <button className="card-del" title="حذف اثر"
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      if (confirm(`حذف «${w.title}»؟`)) { await api.delWork(w.id); setRefresh((x) => x + 1); }
-                    }}>
-                    <Trash2 size={14} />
-                  </button>
+                  <div className="card-admin-tools">
+                    <button className={`card-star ${w.featured ? "on" : ""}`} title={w.featured ? "حذف از آثار شاخص" : "علامت‌گذاری به‌عنوان اثر شاخص"}
+                      onClick={async (e) => { e.stopPropagation(); await api.updateWork(w.id, { featured: w.featured ? 0 : 1 }); setRefresh((x) => x + 1); }}>
+                      <Star size={14} fill={w.featured ? "currentColor" : "none"} />
+                    </button>
+                    <button className="card-copy" title="کپی اطلاعات این اثر"
+                      onClick={(e) => { e.stopPropagation(); setCopySource(w); setAddOpen(true); }}>
+                      <Copy size={14} />
+                    </button>
+                    <button className="card-del" title="حذف اثر"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (confirm(`حذف «${w.title}»؟`)) { await api.delWork(w.id); setRefresh((x) => x + 1); }
+                      }}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 )}
                 <Media work={w} />
                 <div className="work-meta">
@@ -268,7 +299,7 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
                     <span className="chip">{typeLabel(w.type)}</span>
                     <span className="views"><Eye size={13} /> {fmtNum(w.totalViews)}</span>
                   </div>
-                  <h3>{w.title}</h3>
+                  <h3>{w.featured && <Star size={13} className="title-star" fill="currentColor" />} {w.title}</h3>
                   <p className="muted-sm">{w.axis}{w.axis && w.campaign ? " · " : ""}{w.campaign}</p>
                 </div>
               </div>
@@ -278,20 +309,30 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
         ) : (
           <div className="works-list">
             {works.map((w) => (
-              <div key={w.id} className="work-row" onClick={() => openWork(w.id)} role="button" tabIndex={0}>
+              <div key={w.id} className={`work-row ${w.featured ? "is-featured" : ""}`} onClick={() => openWork(w.id)} role="button" tabIndex={0}>
                 <div className="wr-thumb"><Media work={w} small /></div>
                 <div className="wr-body">
                   <div className="wr-line1">
                     <span className="chip">{typeLabel(w.type)}</span>
-                    <h3>{w.title}</h3>
+                    <h3>{w.featured && <Star size={13} className="title-star" fill="currentColor" />} {w.title}</h3>
                     {admin && (
-                      <button className="row-del" title="حذف اثر"
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          if (confirm(`حذف «${w.title}»؟`)) { await api.delWork(w.id); setRefresh((x) => x + 1); }
-                        }}>
-                        <Trash2 size={14} />
-                      </button>
+                      <div className="row-admin-tools">
+                        <button className={`card-star ${w.featured ? "on" : ""}`} title={w.featured ? "حذف از آثار شاخص" : "اثر شاخص"}
+                          onClick={async (e) => { e.stopPropagation(); await api.updateWork(w.id, { featured: w.featured ? 0 : 1 }); setRefresh((x) => x + 1); }}>
+                          <Star size={14} fill={w.featured ? "currentColor" : "none"} />
+                        </button>
+                        <button className="row-copy" title="کپی اطلاعات این اثر"
+                          onClick={(e) => { e.stopPropagation(); setCopySource(w); setAddOpen(true); }}>
+                          <Copy size={14} />
+                        </button>
+                        <button className="row-del" title="حذف اثر"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (confirm(`حذف «${w.title}»؟`)) { await api.delWork(w.id); setRefresh((x) => x + 1); }
+                          }}>
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     )}
                   </div>
                   <p className="muted-sm">{w.descr}</p>
@@ -356,6 +397,7 @@ export function VideoThumb({ url, className }) {
 }
 
 export function mediaKind(url, fallback) {
+  if (fallback === "link") return "link"; // explicit link kind is never re-guessed from the URL
   const ext = String(url || "").toLowerCase().split(/[?#]/)[0].split(".").pop();
   if (["mp4", "webm", "mov", "mkv", "avi", "m4v", "ogv"].includes(ext)) return "video";
   if (["mp3", "wav", "ogg", "oga", "m4a", "aac", "flac", "opus"].includes(ext)) return "audio";
@@ -363,10 +405,24 @@ export function mediaKind(url, fallback) {
   return fallback || "image";
 }
 
+export function linkHost(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ""); }
+  catch { return String(url || "").slice(0, 30); }
+}
+
 export function Media({ work, small, big }) {
   const Icon = ICONS[work.type] || Play;
   // trust the file's actual extension over the work's declared type
   const kind = work.url ? mediaKind(work.url, work.type) : work.type;
+  if (kind === "link" && work.url) {
+    return (
+      <a className="media media-ph media-link" href={work.url} target="_blank" rel="noreferrer"
+        style={{ background: gradFor(work.id) }} onClick={(e) => e.stopPropagation()}>
+        <Link2 size={big ? 40 : small ? 18 : 26} strokeWidth={1.4} />
+        <span className="media-link-t">{linkHost(work.url)}</span>
+      </a>
+    );
+  }
   if (work.url && kind === "video") {
     if (big) {
       return (
@@ -413,21 +469,28 @@ export function gradFor(seed) {
 }
 
 /* ---- add work + Excel import ---- */
-function AddWork({ projectId, types, reloadMeta, onAdded }) {
+function AddWork({ projectId, types, reloadMeta, onAdded, copyFrom, onClose }) {
   const [tab, setTab] = useState("manual"); // "manual" | "excel"
-  const [f, setF] = useState({
+  const [f, setF] = useState(() => copyFrom ? {
+    type: copyFrom.type, title: copyFrom.title + " (کپی)", axis: copyFrom.axis || "",
+    campaign: copyFrom.campaign || "", descr: copyFrom.descr || "",
+    event_date: copyFrom.event_date || null, keywords: copyFrom.keywords || [],
+    url: null, featured: 0,
+  } : {
     type: types[0]?.key || "video", title: "", axis: "", campaign: "",
-    descr: "", event_date: null, keywords: [], url: null,
+    descr: "", event_date: null, keywords: [], url: null, featured: 0,
   });
   const [fileName,  setFileName]  = useState("");
   const [mediaList, setMediaList] = useState([]);   // [{url, kind, name}]
   const [uploading, setUploading] = useState(false);
+  const [uploadPct, setUploadPct] = useState(null);
   const [addType,   setAddType]   = useState(false);
   const [newType,   setNewType]   = useState({ key: "", label: "" });
   const [importing, setImporting] = useState(false);
   const [importLog, setImportLog] = useState("");
   const [axisList, setAxisList] = useState([]);
   const [campList, setCampList] = useState([]);
+  const [linkUrl, setLinkUrl] = useState("");
   const fileRef    = useRef(null);
   const excelRef   = useRef(null);
 
@@ -449,15 +512,25 @@ function AddWork({ projectId, types, reloadMeta, onAdded }) {
     if (!files.length) return;
     setUploading(true);
     const added = [];
-    for (const file of files) {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      setUploadPct({ i: i + 1, n: files.length, pct: 0 });
       try {
-        const { url } = await api.upload(file);
+        const { url } = await api.uploadWithProgress(file, (pct) => setUploadPct({ i: i + 1, n: files.length, pct }));
         if (url) added.push({ url, kind: kindOf(file), name: file.name });
       } catch (err) { /* skip failed file */ }
     }
     setMediaList((prev) => [...prev, ...added]);
     setUploading(false);
+    setUploadPct(null);
     if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const addLink = () => {
+    const u = linkUrl.trim();
+    if (!u) return;
+    setMediaList((prev) => [...prev, { url: u, kind: "link", name: u }]);
+    setLinkUrl("");
   };
 
   const removeMedia = (i) => setMediaList((prev) => prev.filter((_, j) => j !== i));
@@ -544,6 +617,12 @@ function AddWork({ projectId, types, reloadMeta, onAdded }) {
 
   return (
     <div className="add-form">
+      {copyFrom && (
+        <div className="copy-banner">
+          <Copy size={13} /> اطلاعات از «{copyFrom.title}» کپی شد — فقط فایل جدید اضافه کن.
+          {onClose && <button className="x-btn" onClick={onClose}><X size={13} /></button>}
+        </div>
+      )}
       <div className="af-tabs">
         <button className={tab === "manual" ? "af-tab on" : "af-tab"} onClick={() => setTab("manual")}>ثبت دستی</button>
         <button className={tab === "excel"  ? "af-tab on" : "af-tab"} onClick={() => setTab("excel")}>وارد کردن از اکسل</button>
@@ -558,6 +637,17 @@ function AddWork({ projectId, types, reloadMeta, onAdded }) {
               </select>
               <button className="mini" onClick={() => setAddType((v) => !v)} title="افزودن نوع جدید">
                 <Plus size={14} />
+              </button>
+              <button className="mini danger" title="حذف این نوع"
+                onClick={async () => {
+                  const cur = types.find((t) => t.key === f.type);
+                  if (!cur) return;
+                  if (confirm(`نوع «${cur.label}» حذف شود؟ (آثار ثبت‌شده با این نوع حذف نمی‌شوند)`)) {
+                    await api.delType(cur.id);
+                    await reloadMeta();
+                  }
+                }}>
+                <Trash2 size={14} />
               </button>
             </div>
             <input placeholder="عنوان اثر" value={f.title}
@@ -598,20 +688,44 @@ function AddWork({ projectId, types, reloadMeta, onAdded }) {
           <textarea placeholder="شرح اثر" value={f.descr}
             onChange={(e) => setF({ ...f, descr: e.target.value })} />
 
+          <label className="date-check">
+            <input type="checkbox" checked={!!f.featured}
+              onChange={(e) => setF({ ...f, featured: e.target.checked ? 1 : 0 })} />
+            <Star size={13} /> علامت‌گذاری به‌عنوان اثر شاخص
+          </label>
+
           {/* multi-file gallery upload */}
           <div className="media-upload">
-            <button className="btn light sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
-              <Upload size={14} /> {uploading ? "در حال بارگذاری…" : "افزودن فایل‌ها (چند فایل مجاز است)"}
-            </button>
-            <input ref={fileRef} type="file" hidden multiple onChange={pick}
-              accept="image/*,video/*,audio/*" />
+            <div className="media-upload-row">
+              <button className="btn light sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
+                <Upload size={14} /> {uploading ? "در حال بارگذاری…" : "افزودن فایل‌ها (چند فایل مجاز است)"}
+              </button>
+              <input ref={fileRef} type="file" hidden multiple onChange={pick}
+                accept="image/*,video/*,audio/*" />
+              <div className="link-add">
+                <input placeholder="آدرس لینک (اسکرین‌شات/لینک خارجی)" value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addLink()} />
+                <button className="mini" onClick={addLink} title="افزودن لینک"><Link2 size={14} /></button>
+              </div>
+            </div>
+            {uploadPct && (
+              <div className="upload-progress">
+                <div className="upload-progress-bar" style={{ width: uploadPct.pct + "%" }} />
+                <span className="upload-progress-t">
+                  فایل {toFa(uploadPct.i)} از {toFa(uploadPct.n)} — {toFa(uploadPct.pct)}٪
+                </span>
+              </div>
+            )}
             {mediaList.length > 0 && (
               <div className="media-thumbs">
                 {mediaList.map((m, i) => (
                   <div key={i} className="mt-item">
                     {m.kind === "image"
                       ? <img src={m.url} alt="" />
-                      : <div className="mt-icon">{m.kind === "video" ? "🎬" : "🎵"}</div>}
+                      : m.kind === "link"
+                        ? <div className="mt-icon link"><Link2 size={16} /></div>
+                        : <div className="mt-icon">{m.kind === "video" ? "🎬" : "🎵"}</div>}
                     <button className="mt-del" onClick={() => removeMedia(i)} title="حذف"><X size={12} /></button>
                   </div>
                 ))}

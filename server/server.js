@@ -279,16 +279,25 @@ app.put("/api/projects/:id/stats", requireAdmin, (req, res) => {
   const items = req.body.stats || [];
   const tx = db.transaction(() => {
     db.prepare("DELETE FROM stats WHERE project_id=?").run(pid);
-    const ins = db.prepare("INSERT INTO stats (project_id,label,value,sort_order) VALUES (?,?,?,?)");
-    items.forEach((s, i) => ins.run(pid, s.label, s.value, i));
+    const ins = db.prepare("INSERT INTO stats (project_id,label,value,descr,sort_order) VALUES (?,?,?,?,?)");
+    items.forEach((s, i) => ins.run(pid, s.label, s.value, s.descr || "", i));
   });
   tx();
   res.json(db.prepare("SELECT * FROM stats WHERE project_id=? ORDER BY sort_order").all(pid));
 });
 
+/* previously-used stat titles across all projects, for the suggestion dropdown */
+app.get("/api/stat-labels", (req, res) => {
+  const prefix = (req.query.prefix || "").trim();
+  const rows = prefix
+    ? db.prepare("SELECT DISTINCT label FROM stats WHERE label LIKE ? ORDER BY label LIMIT 20").all(prefix + "%")
+    : db.prepare("SELECT DISTINCT label FROM stats WHERE label IS NOT NULL AND TRIM(label)<>'' ORDER BY label LIMIT 100").all();
+  res.json(rows.map((r) => r.label));
+});
+
 /* ---------- works ---------- */
 app.get("/api/works", (req, res) => {
-  const { projectId, type, q, keyword, from, to, sort } = req.query;
+  const { projectId, type, q, keyword, from, to, sort, featured } = req.query;
   // unified: q searches text fields AND keywords; legacy keyword param also supported
   const unifiedQ = q || keyword || "";
 
@@ -302,6 +311,7 @@ app.get("/api/works", (req, res) => {
   const where = [];
   if (projectId) { where.push("w.project_id=?"); args.push(projectId); }
   if (type && type !== "all") { where.push("w.type=?"); args.push(type); }
+  if (featured) { where.push("w.featured=1"); }
   if (from) { where.push("w.event_date>=?"); args.push(from); }
   if (to)   { where.push("w.event_date<=?"); args.push(to); }
   if (unifiedQ) {
@@ -317,6 +327,15 @@ app.get("/api/works", (req, res) => {
   let rows = db.prepare(sql).all(...args).map(hydrateWork);
   if (sort === "views") rows = rows.sort((a, b) => b.totalViews - a.totalViews);
   res.json(rows);
+});
+
+/* featured works belonging to a template (across all its projects) */
+app.get("/api/templates/:id/featured-works", (req, res) => {
+  const rows = db.prepare(
+    `SELECT w.* FROM works w JOIN projects p ON p.id=w.project_id
+     WHERE p.template_id=? AND w.featured=1 ORDER BY datetime(w.created_at) DESC`
+  ).all(req.params.id);
+  res.json(rows.map(hydrateWork));
 });
 
 app.get("/api/works/:id", (req, res) => {
@@ -350,10 +369,10 @@ app.post("/api/works", requireAdmin, (req, res) => {
     // primary url = explicit url, else first media item
     const primaryUrl = b.url || (Array.isArray(b.media) && b.media[0] ? b.media[0].url : null);
     const r = db.prepare(
-      `INSERT INTO works (project_id,type,title,descr,axis,campaign,event_date,url,created_at)
-       VALUES (?,?,?,?,?,?,?,?,?)`
+      `INSERT INTO works (project_id,type,title,descr,axis,campaign,event_date,url,featured,created_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`
     ).run(b.project_id, b.type, b.title, b.descr || "", b.axis || "", b.campaign || "",
-      b.event_date || null, primaryUrl, new Date().toISOString());
+      b.event_date || null, primaryUrl, b.featured ? 1 : 0, new Date().toISOString());
     const id = r.lastInsertRowid;
     saveKeywords(id, b.keywords);
     savePlatformViews(id, b.platformViews);
@@ -375,8 +394,8 @@ app.put("/api/works/:id", requireAdmin, (req, res) => {
       url = (Array.isArray(b.media) && b.media[0]) ? b.media[0].url : (b.url || null);
     }
     db.prepare(
-      `UPDATE works SET type=?,title=?,descr=?,axis=?,campaign=?,event_date=?,url=? WHERE id=?`
-    ).run(b.type, b.title, b.descr, b.axis, b.campaign, b.event_date, url, req.params.id);
+      `UPDATE works SET type=?,title=?,descr=?,axis=?,campaign=?,event_date=?,url=?,featured=? WHERE id=?`
+    ).run(b.type, b.title, b.descr, b.axis, b.campaign, b.event_date, url, b.featured ? 1 : 0, req.params.id);
     if ("keywords" in req.body) saveKeywords(req.params.id, b.keywords);
     if ("platformViews" in req.body) savePlatformViews(req.params.id, b.platformViews);
     if ("media" in req.body) saveMedia(req.params.id, b.media);

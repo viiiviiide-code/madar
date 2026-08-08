@@ -125,6 +125,17 @@ addCol("projects", "node_font", "REAL DEFAULT 12");
 addCol("projects", "node_bold", "INTEGER DEFAULT 0");
 addCol("projects", "template_id", "INTEGER");
 addCol("projects", "end_date", "TEXT");
+addCol("stats", "descr", "TEXT");
+addCol("works", "featured", "INTEGER DEFAULT 0");
+
+/* one-time addition of "screenshot" / "link" work types (existing installs already seeded) */
+const typesV2 = db.prepare("SELECT value FROM settings WHERE key='types_v2_seeded'").get();
+if (!typesV2) {
+  const t = db.prepare("INSERT OR IGNORE INTO work_types (key,label) VALUES (?,?)");
+  t.run("screenshot", "اسکرین‌شات");
+  t.run("link", "لینک");
+  db.prepare("INSERT OR REPLACE INTO settings (key,value) VALUES ('types_v2_seeded','1')").run();
+}
 
 /* ---------- seed users (independent of main seed flag, runs once) ---------- */
 const usersExist = db.prepare("SELECT COUNT(*) c FROM users").get().c;
