@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Search, X, Plus, Minus, ArrowRight, ArrowLeft, Bold, LogIn, Trash2, Save, Type, Menu,
-  CalendarRange, Layers, Edit3, Copy,
+  CalendarRange, Layers, Edit3, Copy, LayoutGrid,
 } from "lucide-react";
 import { api } from "../api";
 import {
@@ -18,6 +18,7 @@ export const TEMPLATE_FONTS = [
 export const TEMPLATE_THEMES = [
   { key: "orbit",  label: "دایره‌ای (مداری)" },
   { key: "square", label: "مربعی" },
+  { key: "card",   label: "کارتی" },
 ];
 
 export default function Home({
@@ -135,6 +136,31 @@ export default function Home({
     else openProject(p.id);
   };
 
+  /* card theme: snap all current cards into a tidy grid (still freely draggable afterwards) */
+  const autoArrangeGrid = async () => {
+    const list = projects.filter(Boolean);
+    if (!list.length) return;
+    const cols = Math.max(1, Math.min(4, Math.ceil(Math.sqrt(list.length))));
+    const rows = Math.ceil(list.length / cols);
+    const xStep = 86 / Math.max(1, cols - 1 || 1);
+    const yStep = 76 / Math.max(1, rows - 1 || 1);
+    const updated = list.map((p, i) => {
+      const col = i % cols, row = Math.floor(i / cols);
+      const node_x = cols === 1 ? 50 : 7 + col * xStep;
+      const node_y = rows === 1 ? 46 : 12 + row * yStep;
+      return { ...p, node_x, node_y };
+    });
+    setProjects(updated);
+    await Promise.all(updated.map((p) =>
+      api.updateProject(p.id, {
+        title: p.title, sub: p.sub, start_date: p.start_date, end_date: p.end_date,
+        node_x: p.node_x, node_y: p.node_y, node_size: p.node_size,
+        node_font: p.node_font, node_bold: p.node_bold, template_id: p.template_id,
+      })
+    ));
+    flash("چیدمان شبکه‌ای اعمال شد ✓");
+  };
+
   /* ---- search ---- */
   const [q, setQ] = useState("");
   const [searchAll, setSearchAll] = useState([]);
@@ -229,6 +255,11 @@ export default function Home({
           <button className="btn light sm" onClick={() => { setTplEditTarget(activeTemplate?.id || null); setHomeTool("template"); }}>
             <Edit3 size={14} /> ویرایش تمپلیت
           </button>
+          {theme === "card" && (
+            <button className="btn light sm" onClick={autoArrangeGrid} title="کارت‌ها را به‌صورت شبکه‌ای مرتب کن">
+              <LayoutGrid size={14} /> چیدمان شبکه‌ای
+            </button>
+          )}
           <button className="btn gold sm" onClick={() => setHomeTool("define")}>
             <Plus size={14} /> فعالیت جدید
           </button>
@@ -290,61 +321,70 @@ export default function Home({
         />
       )}
 
-      {/* orbit map */}
+      {/* orbit map (or freeform card board when theme === "card") */}
       <div className="orbit-wrap">
         <div className={`orbit-square theme-${theme}`} ref={squareRef}>
-          <svg className="orbit-lines" viewBox="0 0 100 100" preserveAspectRatio="none">
-            {rings.map((r, i) => (
-              theme === "square"
-                ? <rect key={i} x={50 - r} y={50 - r} width={r * 2} height={r * 2} rx="3"
-                    className={`ring ${i % 2 ? "ring-dash" : ""}`} />
-                : <circle key={i} cx="50" cy="50" r={r} className={`ring ${i % 2 ? "ring-dash" : ""}`} />
-            ))}
-            {projects.map((p) => p && (
-              <line key={p.id} x1="50" y1="50" x2={p.node_x} y2={p.node_y} className="spoke" />
-            ))}
-          </svg>
+          {theme !== "card" && (
+            <svg className="orbit-lines" viewBox="0 0 100 100" preserveAspectRatio="none">
+              {rings.map((r, i) => (
+                theme === "square"
+                  ? <rect key={i} x={50 - r} y={50 - r} width={r * 2} height={r * 2} rx="3"
+                      className={`ring ${i % 2 ? "ring-dash" : ""}`} />
+                  : <circle key={i} cx="50" cy="50" r={r} className={`ring ${i % 2 ? "ring-dash" : ""}`} />
+              ))}
+              {projects.map((p) => p && (
+                <line key={p.id} x1="50" y1="50" x2={p.node_x} y2={p.node_y} className="spoke" />
+              ))}
+            </svg>
+          )}
 
-          {/* center */}
-          <div className={`center-node ${anim.pulse ? "anim-pulse" : ""}`}>
-            <div className="yr-core">
-              {isTemplate ? (
-                <>
-                  <Layers size={15} className="core-ic" />
-                  <span className="yr-label" style={{ fontSize: labelFont }}>{activeTemplate?.label || "—"}</span>
-                  {tplRange && <span className="yr-sub">{tplRange}</span>}
-                </>
-              ) : (
-                <>
-                  <CalendarRange size={15} className="core-ic" />
-                  <span className="range-disp" style={{ fontSize: labelFont }}>
-                    {MONTHS[range.fromM - 1]} {toFa(range.fromY)}
-                  </span>
-                  <span className="range-disp-sep">تا</span>
-                  <span className="range-disp" style={{ fontSize: labelFont }}>
-                    {MONTHS[range.toM - 1]} {toFa(range.toY)}
-                  </span>
-                </>
-              )}
+          {/* center — hidden for the card theme; the template title already sits in the bar above */}
+          {theme !== "card" && (
+            <div className={`center-node ${anim.pulse ? "anim-pulse" : ""}`}>
+              <div className="yr-core">
+                {isTemplate ? (
+                  <>
+                    <Layers size={15} className="core-ic" />
+                    <span className="yr-label" style={{ fontSize: labelFont }}>{activeTemplate?.label || "—"}</span>
+                    {tplRange && <span className="yr-sub">{tplRange}</span>}
+                  </>
+                ) : (
+                  <>
+                    <CalendarRange size={15} className="core-ic" />
+                    <span className="range-disp" style={{ fontSize: labelFont }}>
+                      {MONTHS[range.fromM - 1]} {toFa(range.fromY)}
+                    </span>
+                    <span className="range-disp-sep">تا</span>
+                    <span className="range-disp" style={{ fontSize: labelFont }}>
+                      {MONTHS[range.toM - 1]} {toFa(range.toY)}
+                    </span>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* nodes */}
+          {/* nodes / cards */}
           {projects.map((p) => p && (
             <div key={p.id} className={`node-pos ${editId === p.id ? "editing" : ""}`}
               style={{ left: `${p.node_x}%`, top: `${p.node_y}%` }}>
               <button
-                className={`node ${anim.float ? "anim-float" : ""} ${admin ? "draggable" : ""}`}
-                style={{ width: p.node_size, height: p.node_size }}
+                className={`node ${theme === "card" ? "node-card" : ""} ${anim.float && theme !== "card" ? "anim-float" : ""} ${admin ? "draggable" : ""}`}
+                style={theme === "card"
+                  ? { width: Math.max(p.node_size * 2.1, 130), height: Math.max(p.node_size * 1.15, 74) }
+                  : { width: p.node_size, height: p.node_size }}
                 onPointerDown={(e) => onPointerDown(e, p, "move")}
                 onClick={() => onNodeClick(p)}
                 title={admin ? "کلیک: ویرایش · بکش: جابه‌جایی" : p.title}
               >
-                <span className={`node-dot ${anim.twinkle ? "anim-twinkle" : ""}`} />
+                {theme !== "card" && <span className={`node-dot ${anim.twinkle ? "anim-twinkle" : ""}`} />}
                 <span className="node-inner-title"
                   style={{ fontSize: (p.node_font || 12), fontWeight: p.node_bold ? 800 : 600 }}>
                   {p.title}
                 </span>
+                {theme === "card" && p.start_date && (
+                  <span className="node-card-date">{formatJalaliMonth(p.start_date)}</span>
+                )}
               </button>
               {admin && (
                 <span className="resize-h" onPointerDown={(e) => onPointerDown(e, p, "resize")} title="تغییر اندازه" />
@@ -377,19 +417,34 @@ function Panel({ title, onClose, children }) {
   );
 }
 
+/* tiny localStorage-backed draft helper so mid-typing refreshes don't lose form data */
+function loadDraft(key) {
+  try { return JSON.parse(localStorage.getItem(key) || "null"); } catch { return null; }
+}
+function saveDraft(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+}
+function clearDraft(key) {
+  try { localStorage.removeItem(key); } catch {}
+}
+
 function DefineProject({ defaultDate, templates, defaultTemplate, onAdd, onClose }) {
-  const [f, setF] = useState({
+  const DRAFT_KEY = "madar_draft_activity";
+  const [f, setF] = useState(() => loadDraft(DRAFT_KEY) || {
     title: "", sub: "",
     start_date: defaultDate || jalaliToISO(1404, 1, 1),
     end_date: "",
     template_id: defaultTemplate || "",
   });
-  const submit = () => {
+  useEffect(() => { saveDraft(DRAFT_KEY, f); }, [f]);
+  const submit = async () => {
     if (!f.title.trim()) return;
-    onAdd({ ...f, end_date: f.end_date || null, template_id: f.template_id || null });
+    await onAdd({ ...f, end_date: f.end_date || null, template_id: f.template_id || null });
+    clearDraft(DRAFT_KEY);
   };
+  const closeAndDiscard = () => { clearDraft(DRAFT_KEY); onClose(); };
   return (
-    <Panel title="تعریف فعالیت" onClose={onClose}>
+    <Panel title="تعریف فعالیت" onClose={closeAndDiscard}>
       <div className="dp-row">
         <input placeholder="عنوان فعالیت *" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} />
         <input placeholder="توضیح کوتاه" value={f.sub} onChange={(e) => setF({ ...f, sub: e.target.value })} />
@@ -415,7 +470,7 @@ function DefineProject({ defaultDate, templates, defaultTemplate, onAdd, onClose
         </select>
       </div>
       <div className="dp-actions">
-        <button className="btn ghost sm" onClick={onClose}>انصراف</button>
+        <button className="btn ghost sm" onClick={closeAndDiscard}>انصراف</button>
         <button className="btn gold sm" disabled={!f.title.trim()} onClick={submit}>ثبت فعالیت</button>
       </div>
     </Panel>
@@ -423,10 +478,12 @@ function DefineProject({ defaultDate, templates, defaultTemplate, onAdd, onClose
 }
 
 function TemplatePanel({ templates, reload, onClose, flash, onEnterTemplate, initialEditId }) {
-  const [draft, setDraft] = useState({
+  const TPL_DRAFT_KEY = "madar_draft_template";
+  const [draft, setDraft] = useState(() => loadDraft(TPL_DRAFT_KEY) || {
     label: "", from_date: jalaliToISO(1404, 1, 1), to_date: jalaliToISO(1404, 12, 1),
     theme: "orbit", font: "Vazirmatn",
   });
+  useEffect(() => { saveDraft(TPL_DRAFT_KEY, draft); }, [draft]);
   const initial = initialEditId ? templates.find((t) => t.id === initialEditId) : null;
   const [editId, setEditId] = useState(initialEditId || null);
   const [edit, setEdit] = useState(initial
@@ -437,6 +494,7 @@ function TemplatePanel({ templates, reload, onClose, flash, onEnterTemplate, ini
     if (!draft.label.trim()) return;
     const created = await api.addTemplate(draft);
     setDraft({ label: "", from_date: jalaliToISO(1404, 1, 1), to_date: jalaliToISO(1404, 12, 1), theme: "orbit", font: "Vazirmatn" });
+    clearDraft(TPL_DRAFT_KEY);
     await reload();
     flash("تمپلیت ساخته شد ✓");
     if (created?.id) onEnterTemplate?.(created);
@@ -448,9 +506,10 @@ function TemplatePanel({ templates, reload, onClose, flash, onEnterTemplate, ini
     await reload(); flash("ذخیره شد ✓");
   };
   const del = async (id) => { if (confirm("حذف این تمپلیت؟ فعالیت‌هایش حذف نمی‌شوند.")) { await api.delTemplate(id); await reload(); } };
+  const closeAndDiscard = () => { clearDraft(TPL_DRAFT_KEY); onClose(); };
 
   return (
-    <Panel title="تعریف / ویرایش تمپلیت" onClose={onClose}>
+    <Panel title="تعریف / ویرایش تمپلیت" onClose={closeAndDiscard}>
       <div className="tpl-list">
         {templates.map((t) => (
           <div key={t.id} className="tpl-row">
