@@ -24,3 +24,11 @@ web/dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Database (runtime data, lives outside the repo's version history)
+database/
+
+# Backup folders/files created during manual deploys
+database-backup/
+database-backup-*/
+*.backup
