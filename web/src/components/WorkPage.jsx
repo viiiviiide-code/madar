@@ -26,6 +26,8 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
   const [axisList,    setAxisList]    = useState([]);
   const [campList,    setCampList]    = useState([]);
   const [activeIdx,   setActiveIdx]   = useState(0);
+  const [uploadPct,   setUploadPct]   = useState(null);
+  const [linkUrl,     setLinkUrl]     = useState("");
   const stageRef = useRef(null);
   const mediaFileRef = useRef(null);
 
@@ -166,8 +168,6 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
     } catch (e) {}
   };
 
-  const [uploadPct, setUploadPct] = useState(null);
-  const [linkUrl, setLinkUrl] = useState("");
   const kindOf = (file) => {
     const t = file.type || "";
     if (t.startsWith("video")) return "video";
