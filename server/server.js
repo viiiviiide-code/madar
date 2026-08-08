@@ -24,7 +24,7 @@ const { sign, requireAuth, requireAdmin } = require("./auth");
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "2mb" }));
 
 /* ---------- auth ---------- */
 app.post("/api/login", (req, res) => {

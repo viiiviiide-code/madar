@@ -26,6 +26,7 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
   const [q,       setQ]       = useState(initialQuery);   // unified search
   const [type,    setType]    = useState("all");
   const [sort,    setSort]    = useState("new");
+  const [featuredOnly, setFeaturedOnly] = useState(false);
   const [viewMode,setViewMode]= useState("list");
   const [addOpen, setAddOpen] = useState(false);
   const [refresh, setRefresh] = useState(0);
@@ -49,12 +50,12 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
       } : null))
       .catch(() => setProject(null));
   const loadWorks = () =>
-    api.works({ projectId, type, q, sort })
+    api.works({ projectId, type, q, sort, ...(featuredOnly ? { featured: 1 } : {}) })
       .then((w) => setWorks(Array.isArray(w) ? w : []))
       .catch(() => setWorks([]));
 
   useEffect(() => { loadProject(); }, [projectId, refresh]);
-  useEffect(() => { loadWorks(); },  [projectId, type, q, sort, refresh]);
+  useEffect(() => { loadWorks(); },  [projectId, type, q, sort, featuredOnly, refresh]);
   useEffect(() => { if (admin) api.statLabels().then((v) => setStatLabels(Array.isArray(v) ? v : [])).catch(() => {}); }, [admin]);
 
   // fullscreen change listener
@@ -157,7 +158,7 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
           <h2>آمار پروژه</h2>
           {admin && (
             <button className="btn ghost sm"
-              onClick={() => setStats([...project.stats, { label: "عنوان آمار", value: "۰", descr: "" }])}>
+              onClick={() => setStats([...project.stats, { label: "", value: "۰", descr: "" }])}>
               <Plus size={14} /> افزودن فیلد
             </button>
           )}
@@ -172,7 +173,7 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
                 <>
                   <input className="stat-val-in" value={s.value}
                     onChange={(e) => setStats(project.stats.map((x, j) => j === i ? { ...x, value: e.target.value } : x))} />
-                  <input className="stat-lbl-in" value={s.label} list="stat-label-options"
+                  <input className="stat-lbl-in" value={s.label} list="stat-label-options" placeholder="عنوان آمار"
                     onChange={(e) => setStats(project.stats.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} />
                   <input className="stat-descr-in" placeholder="توضیح (اختیاری)" value={s.descr || ""}
                     onChange={(e) => setStats(project.stats.map((x, j) => j === i ? { ...x, descr: e.target.value } : x))} />
@@ -229,7 +230,7 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
             onAdded={() => {
               setAddOpen(false);
               setCopySource(null);
-              setQ(""); setType("all"); setSort("new"); setViewMode("list");
+              setQ(""); setType("all"); setSort("new"); setViewMode("list"); setFeaturedOnly(false);
               setRefresh((x) => x + 1);   // force refetch even if filters unchanged
             }}
             onClose={() => { setAddOpen(false); setCopySource(null); }}
@@ -251,6 +252,10 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
               {types.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
             </select>
           </div>
+          <button className={`btn light sm featured-filter ${featuredOnly ? "on" : ""}`}
+            onClick={() => setFeaturedOnly((v) => !v)} title="فقط آثار شاخص">
+            <Star size={14} fill={featuredOnly ? "currentColor" : "none"} /> شاخص
+          </button>
           <div className="sort">
             <ArrowUpDown size={15} className="muted" />
             <select value={sort} onChange={(e) => setSort(e.target.value)}>
