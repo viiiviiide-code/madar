@@ -22,6 +22,10 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
   const [copyTarget, setCopyTarget] = useState(false);
   const [renameVal, setRenameVal] = useState("");
   const [newPlatformLogo, setNewPlatformLogo] = useState(null);
+  const [newPlatformType, setNewPlatformType] = useState("social");
+  const [tvFormOpenId, setTvFormOpenId] = useState(null);
+  const [tvFormDate, setTvFormDate] = useState("");
+  const [tvFormTime, setTvFormTime] = useState("");
   const platformLogoRef = useRef(null);
   const [saved,       setSaved]       = useState(false); // visual feedback
   const [notFound,    setNotFound]    = useState(false);
@@ -45,6 +49,7 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
     keywords: Array.isArray(w?.keywords) ? w.keywords : [],
     platformViews: Array.isArray(w?.platformViews) ? w.platformViews : [],
     totalViews: Number(w?.totalViews) || 0,
+    tv: Array.isArray(w?.tv) ? w.tv : [],
   });
 
   const editDraftKey = (id) => `madar_draft_workedit_${id}`;
@@ -141,6 +146,24 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
         pv.platform_id === pid ? { ...pv, [field]: Number(value) || 0 } : pv),
     });
 
+  /* TV broadcast schedule: flat rows of {platform_id, date, time}, grouped by date for display */
+  const tvRows = (pid) => (draft.tv || []).filter((t) => t.platform_id === pid);
+  const tvGrouped = (pid) => {
+    const byDate = {};
+    tvRows(pid).forEach((r) => { (byDate[r.date] ||= []).push(r.time); });
+    return Object.entries(byDate).sort(([a], [b]) => a.localeCompare(b));
+  };
+  const addTvEntry = (pid) => {
+    if (!tvFormDate || !tvFormTime) return;
+    const already = (draft.tv || []).some((t) => t.platform_id === pid && t.date === tvFormDate && t.time === tvFormTime);
+    if (!already) setDraft({ ...draft, tv: [...(draft.tv || []), { platform_id: pid, date: tvFormDate, time: tvFormTime }] });
+    setTvFormTime("");
+  };
+  const removeTvEntry = (pid, date, time) =>
+    setDraft({ ...draft, tv: (draft.tv || []).filter((t) => !(t.platform_id === pid && t.date === date && t.time === time)) });
+  const removeTvDate = (pid, date) =>
+    setDraft({ ...draft, tv: (draft.tv || []).filter((t) => !(t.platform_id === pid && t.date === date)) });
+
   const save = async () => {
     try {
       const res = await api.updateWork(work.id, {
@@ -153,6 +176,7 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
         keywords:   draft.keywords,
         featured:   draft.featured ? 1 : 0,
         platformViews: draft.platformViews,
+        tv:         draft.tv || [],
         media:      draft.media || [],
       });
       const nw = normalize(res);
@@ -174,7 +198,7 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
     if (newPlatformLogo) {
       try { const r = await api.uploadWithProgress(newPlatformLogo); logo_url = r.url; } catch (e) {}
     }
-    await api.addPlatform(newPlatform.trim(), logo_url);
+    await api.addPlatform(newPlatform.trim(), logo_url, newPlatformType);
     await reloadMeta();
     setNewPlatform("");
     setNewPlatformLogo(null);
@@ -440,13 +464,13 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
               )}
           </Field>
 
-          {/* platform views */}
+          {/* platform views — social networks only; TV networks have their own section below */}
           <div className="pv-block">
-            <span className="info-k">بازدید / لایک / کامنت به تفکیک پلتفرم</span>
+            <span className="info-k">بازدید / لایک / کامنت — شبکه‌های اجتماعی</span>
             {admin ? (
               <>
                 <div className="pv-list">
-                  {platforms.map((p) => {
+                  {platforms.filter((p) => p.type !== "tv").map((p) => {
                     const on = p.id in pvMap;
                     const pv = pvMap[p.id] || {};
                     return (
@@ -474,21 +498,6 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
                             <span className="pv-plabel-t">{p.label}</span>
                           )}
                         </label>
-                        <div className="pv-card-tools">
-                          <button className="mini" title="تغییر نام" onClick={(e) => { e.stopPropagation(); setRenamingId(p.id); setRenameVal(p.label); }}>
-                            <Edit3 size={12} />
-                          </button>
-                          <button className="mini danger" title="حذف پلتفرم"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              if (confirm(`پلتفرم «${p.label}» حذف شود؟ آمار ثبت‌شده برایش هم پاک می‌شود.`)) {
-                                await api.delPlatform(p.id);
-                                await reloadMeta();
-                              }
-                            }}>
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
                         {on && (
                           <div className="pv-nums">
                             <label className="pv-num-lbl"><Eye size={13} />
@@ -505,6 +514,21 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
                             </label>
                           </div>
                         )}
+                        <div className="pv-card-tools">
+                          <button className="mini" title="تغییر نام" onClick={(e) => { e.stopPropagation(); setRenamingId(p.id); setRenameVal(p.label); }}>
+                            <Edit3 size={12} /> تغییر نام
+                          </button>
+                          <button className="mini danger" title="حذف پلتفرم"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (confirm(`پلتفرم «${p.label}» حذف شود؟ آمار ثبت‌شده برایش هم پاک می‌شود.`)) {
+                                await api.delPlatform(p.id);
+                                await reloadMeta();
+                              }
+                            }}>
+                            <Trash2 size={12} /> حذف
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
@@ -513,6 +537,16 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
                   <input placeholder="افزودن پلتفرم…" value={newPlatform}
                     onChange={(e) => setNewPlatform(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && addPlatform()} />
+                  <div className="pv-type-pick">
+                    <label className={newPlatformType === "social" ? "on" : ""}>
+                      <input type="radio" name="newPlatformType" checked={newPlatformType === "social"}
+                        onChange={() => setNewPlatformType("social")} /> شبکهٔ اجتماعی
+                    </label>
+                    <label className={newPlatformType === "tv" ? "on" : ""}>
+                      <input type="radio" name="newPlatformType" checked={newPlatformType === "tv"}
+                        onChange={() => setNewPlatformType("tv")} /> تلویزیونی
+                    </label>
+                  </div>
                   <button className="mini" title="لوگوی پلتفرم جدید" onClick={() => platformLogoRef.current?.click()}>
                     <Camera size={14} />
                   </button>
@@ -574,6 +608,126 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
               </>
             )}
           </div>
+
+          {/* TV broadcast conductor — networks have no views/likes/comments, only a schedule */}
+          {(admin || work.tv.length > 0) && (
+            <div className="pv-block tv-block">
+              <span className="info-k">کنداکتور پخش — شبکه‌های تلویزیونی</span>
+              {admin ? (
+                <div className="pv-list">
+                  {platforms.filter((p) => p.type === "tv").length === 0 && (
+                    <p className="muted-sm">هنوز شبکه‌ای تعریف نشده — از فرم «افزودن پلتفرم» بالا با گزینهٔ «تلویزیونی» اضافه کن.</p>
+                  )}
+                  {platforms.filter((p) => p.type === "tv").map((p) => {
+                    const grouped = tvGrouped(p.id);
+                    const formOpen = tvFormOpenId === p.id;
+                    return (
+                      <div key={p.id} className={`pv-card ${grouped.length ? "on" : ""}`}>
+                        <div className="pv-card-head">
+                          <span className="plat-logo-wrap">
+                            {p.logo_url
+                              ? <img className="plat-logo" src={p.logo_url} alt="" />
+                              : <span className="plat-logo ph">{p.label?.[0] || "?"}</span>}
+                            <label className="plat-logo-edit" title="تغییر لوگو" onClick={(e) => e.stopPropagation()}>
+                              <Camera size={11} />
+                              <input type="file" hidden accept="image/*"
+                                onChange={(e) => uploadPlatformLogo(p.id, e.target.files?.[0])} />
+                            </label>
+                          </span>
+                          {renamingId === p.id ? (
+                            <input className="pv-rename-in" autoFocus value={renameVal}
+                              onChange={(e) => setRenameVal(e.target.value)}
+                              onKeyDown={(e) => e.key === "Enter" && commitRename(p.id)}
+                              onBlur={() => commitRename(p.id)} />
+                          ) : (
+                            <span className="pv-plabel-t">{p.label}</span>
+                          )}
+                        </div>
+
+                        {grouped.length > 0 && (
+                          <div className="tv-dates">
+                            {grouped.map(([date, times]) => (
+                              <div key={date} className="tv-date-block">
+                                <span className="tv-date-t">{formatJalali(date)}</span>
+                                <div className="tv-times">
+                                  {times.map((t) => (
+                                    <span key={t} className="tv-time-chip">
+                                      {t}
+                                      <button onClick={() => removeTvEntry(p.id, date, t)}><X size={10} /></button>
+                                    </span>
+                                  ))}
+                                </div>
+                                <button className="mini" title="حذف این تاریخ" onClick={() => removeTvDate(p.id, date)}>
+                                  <Trash2 size={11} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {formOpen ? (
+                          <div className="tv-add-form">
+                            <JalaliInput value={tvFormDate || jalaliToISO(1404, 1, 1)} onChange={setTvFormDate} />
+                            <input type="time" className="tv-time-in" value={tvFormTime} onChange={(e) => setTvFormTime(e.target.value)} />
+                            <button className="mini" disabled={!tvFormDate || !tvFormTime} onClick={() => addTvEntry(p.id)}><Plus size={13} /></button>
+                            <button className="mini" onClick={() => { setTvFormOpenId(null); setTvFormDate(""); setTvFormTime(""); }}><X size={13} /></button>
+                          </div>
+                        ) : (
+                          <button className="btn light sm tv-add-btn" onClick={() => { setTvFormOpenId(p.id); setTvFormDate(""); setTvFormTime(""); }}>
+                            <Plus size={13} /> افزودن تاریخ/ساعت پخش
+                          </button>
+                        )}
+
+                        <div className="pv-card-tools">
+                          <button className="mini" title="تغییر نام" onClick={() => { setRenamingId(p.id); setRenameVal(p.label); }}>
+                            <Edit3 size={12} /> تغییر نام
+                          </button>
+                          <button className="mini danger" title="حذف شبکه"
+                            onClick={async () => {
+                              if (confirm(`شبکهٔ «${p.label}» حذف شود؟`)) { await api.delPlatform(p.id); await reloadMeta(); }
+                            }}>
+                            <Trash2 size={12} /> حذف
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="pv-view">
+                  {work.tv.length === 0 && <span className="muted-sm">پخش تلویزیونی ثبت نشده</span>}
+                  {Object.values(
+                    work.tv.reduce((acc, t) => {
+                      (acc[t.platform_id] ||= { label: t.label, logo_url: t.logo_url, dates: {} });
+                      (acc[t.platform_id].dates[t.date] ||= []).push(t.time);
+                      return acc;
+                    }, {})
+                  ).map((net, i) => (
+                    <div key={i} className="tv-view-card">
+                      <div className="pv-line-name-row">
+                        <span className="plat-logo-wrap sm">
+                          {net.logo_url
+                            ? <img className="plat-logo" src={net.logo_url} alt="" />
+                            : <span className="plat-logo ph">{net.label?.[0] || "?"}</span>}
+                        </span>
+                        <span className="pv-line-name">{net.label}</span>
+                      </div>
+                      <div className="tv-dates">
+                        {Object.entries(net.dates).sort(([a], [b]) => a.localeCompare(b)).map(([date, times]) => (
+                          <div key={date} className="tv-date-block view">
+                            <span className="tv-date-t">{formatJalali(date)}</span>
+                            <div className="tv-times">
+                              {times.map((t) => <span key={t} className="tv-time-chip view">{t}</span>)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {admin && (
             <div className="work-admin-actions">

@@ -99,6 +99,13 @@ const platformViewsOf = (workId) =>
      WHERE pv.work_id=?`
   ).all(workId);
 
+const tvBroadcastsOf = (workId) =>
+  db.prepare(
+    `SELECT tb.id, tb.platform_id, p.label, p.logo_url, tb.date, tb.time
+     FROM tv_broadcasts tb JOIN platforms p ON p.id=tb.platform_id
+     WHERE tb.work_id=? ORDER BY tb.date, tb.time`
+  ).all(workId);
+
 const mediaOf = (workId) =>
   db.prepare("SELECT id, url, kind, sort_order FROM work_media WHERE work_id=? ORDER BY sort_order, id")
     .all(workId);
@@ -113,6 +120,7 @@ function hydrateWork(w) {
     totalLikes: totalLikes(w.id),
     totalComments: totalComments(w.id),
     media: mediaOf(w.id),
+    tv: tvBroadcastsOf(w.id),
   };
 }
 
@@ -159,19 +167,21 @@ app.delete("/api/types/:id", requireAdmin, (req, res) => {
 app.get("/api/platforms", (req, res) =>
   res.json(db.prepare("SELECT * FROM platforms ORDER BY id").all()));
 app.post("/api/platforms", requireAdmin, (req, res) => {
-  const r = db.prepare("INSERT INTO platforms (label,logo_url) VALUES (?,?)")
-    .run(req.body.label, req.body.logo_url || null);
+  const r = db.prepare("INSERT INTO platforms (label,logo_url,type) VALUES (?,?,?)")
+    .run(req.body.label, req.body.logo_url || null, req.body.type === "tv" ? "tv" : "social");
   res.json(db.prepare("SELECT * FROM platforms WHERE id=?").get(r.lastInsertRowid));
 });
 app.put("/api/platforms/:id", requireAdmin, (req, res) => {
   const cur = db.prepare("SELECT * FROM platforms WHERE id=?").get(req.params.id);
   if (!cur) return res.status(404).json({ error: "not found" });
   const b = { ...cur, ...req.body };
-  db.prepare("UPDATE platforms SET label=?, logo_url=? WHERE id=?").run(b.label, b.logo_url ?? null, req.params.id);
+  db.prepare("UPDATE platforms SET label=?, logo_url=?, type=? WHERE id=?")
+    .run(b.label, b.logo_url ?? null, b.type === "tv" ? "tv" : "social", req.params.id);
   res.json(db.prepare("SELECT * FROM platforms WHERE id=?").get(req.params.id));
 });
 app.delete("/api/platforms/:id", requireAdmin, (req, res) => {
   db.prepare("DELETE FROM work_platform_views WHERE platform_id=?").run(req.params.id);
+  db.prepare("DELETE FROM tv_broadcasts WHERE platform_id=?").run(req.params.id);
   db.prepare("DELETE FROM platforms WHERE id=?").run(req.params.id);
   res.json({ ok: true });
 });
@@ -321,6 +331,7 @@ app.post("/api/projects/:id/duplicate", requireAdmin, (req, res) => {
     const insKw = db.prepare("INSERT INTO work_keywords (work_id,text) VALUES (?,?)");
     const insPV = db.prepare("INSERT INTO work_platform_views (work_id,platform_id,views,likes,comments) VALUES (?,?,?,?,?)");
     const insMedia = db.prepare("INSERT INTO work_media (work_id,url,kind,sort_order) VALUES (?,?,?,?)");
+    const insTv = db.prepare("INSERT INTO tv_broadcasts (work_id,platform_id,date,time) VALUES (?,?,?,?)");
 
     for (const w of works) {
       const wr = insWork.run(pid, w.type, w.title, w.descr, w.axis, w.campaign, w.event_date, w.url, w.featured, now);
@@ -329,6 +340,8 @@ app.post("/api/projects/:id/duplicate", requireAdmin, (req, res) => {
       db.prepare("SELECT platform_id,views,likes,comments FROM work_platform_views WHERE work_id=?").all(w.id)
         .forEach((pv) => insPV.run(wid, pv.platform_id, pv.views, pv.likes, pv.comments));
       mediaOf(w.id).forEach((m) => insMedia.run(wid, m.url, m.kind, m.sort_order));
+      db.prepare("SELECT platform_id,date,time FROM tv_broadcasts WHERE work_id=?").all(w.id)
+        .forEach((t) => insTv.run(wid, t.platform_id, t.date, t.time));
     }
     return pid;
   })();
@@ -419,6 +432,12 @@ function savePlatformViews(workId, platformViews) {
   (platformViews || []).forEach((pv) =>
     ins.run(workId, pv.platform_id, Number(pv.views) || 0, Number(pv.likes) || 0, Number(pv.comments) || 0));
 }
+function saveTvBroadcasts(workId, tv) {
+  db.prepare("DELETE FROM tv_broadcasts WHERE work_id=?").run(workId);
+  const ins = db.prepare("INSERT INTO tv_broadcasts (work_id,platform_id,date,time) VALUES (?,?,?,?)");
+  (tv || []).filter((t) => t && t.platform_id && t.date && t.time)
+    .forEach((t) => ins.run(workId, t.platform_id, t.date, t.time));
+}
 function saveMedia(workId, media) {
   db.prepare("DELETE FROM work_media WHERE work_id=?").run(workId);
   const ins = db.prepare("INSERT INTO work_media (work_id,url,kind,sort_order) VALUES (?,?,?,?)");
@@ -439,6 +458,7 @@ app.post("/api/works", requireAdmin, (req, res) => {
     const id = r.lastInsertRowid;
     saveKeywords(id, b.keywords);
     savePlatformViews(id, b.platformViews);
+    saveTvBroadcasts(id, b.tv);
     saveMedia(id, b.media);
     return id;
   });
@@ -461,6 +481,7 @@ app.put("/api/works/:id", requireAdmin, (req, res) => {
     ).run(b.type, b.title, b.descr, b.axis, b.campaign, b.event_date, url, b.featured ? 1 : 0, req.params.id);
     if ("keywords" in req.body) saveKeywords(req.params.id, b.keywords);
     if ("platformViews" in req.body) savePlatformViews(req.params.id, b.platformViews);
+    if ("tv" in req.body) saveTvBroadcasts(req.params.id, b.tv);
     if ("media" in req.body) saveMedia(req.params.id, b.media);
   });
   tx();
@@ -495,23 +516,42 @@ app.post("/api/works/:id/duplicate", requireAdmin, (req, res) => {
       .forEach((pv) => insPV.run(wid, pv.platform_id, pv.views, pv.likes, pv.comments));
     const insMedia = db.prepare("INSERT INTO work_media (work_id,url,kind,sort_order) VALUES (?,?,?,?)");
     mediaOf(src.id).forEach((m) => insMedia.run(wid, m.url, m.kind, m.sort_order));
+    const insTv = db.prepare("INSERT INTO tv_broadcasts (work_id,platform_id,date,time) VALUES (?,?,?,?)");
+    db.prepare("SELECT platform_id,date,time FROM tv_broadcasts WHERE work_id=?").all(src.id)
+      .forEach((t) => insTv.run(wid, t.platform_id, t.date, t.time));
     return wid;
   })();
 
   res.json(hydrateWork(db.prepare("SELECT * FROM works WHERE id=?").get(newId)));
 });
 
-/* similar works: shares >=1 keyword (OR), ranked by shared count */
+/* similar works: shares >=1 keyword (OR), ranked by shared count —
+   scoped to the same template (or, if the work's activity has no template, just that activity) */
 app.get("/api/works/:id/similar", (req, res) => {
   const kws = keywordsOf(req.params.id);
   if (!kws.length) return res.json([]);
+  const srcWork = db.prepare("SELECT project_id FROM works WHERE id=?").get(req.params.id);
+  if (!srcWork) return res.json([]);
+  const srcProject = db.prepare("SELECT template_id FROM projects WHERE id=?").get(srcWork.project_id);
+  const templateId = srcProject?.template_id ?? null;
   const ph = kws.map(() => "?").join(",");
-  const rows = db.prepare(
-    `SELECT w.*, COUNT(*) shared
-     FROM works w JOIN work_keywords k ON k.work_id=w.id
-     WHERE k.text IN (${ph}) AND w.id<>?
-     GROUP BY w.id ORDER BY shared DESC, datetime(w.created_at) DESC LIMIT 6`
-  ).all(...kws, req.params.id);
+
+  let sql, args;
+  if (templateId) {
+    sql = `SELECT w.*, COUNT(*) shared
+           FROM works w JOIN work_keywords k ON k.work_id=w.id
+           JOIN projects p ON p.id=w.project_id
+           WHERE k.text IN (${ph}) AND w.id<>? AND p.template_id=?
+           GROUP BY w.id ORDER BY shared DESC, datetime(w.created_at) DESC LIMIT 6`;
+    args = [...kws, req.params.id, templateId];
+  } else {
+    sql = `SELECT w.*, COUNT(*) shared
+           FROM works w JOIN work_keywords k ON k.work_id=w.id
+           WHERE k.text IN (${ph}) AND w.id<>? AND w.project_id=?
+           GROUP BY w.id ORDER BY shared DESC, datetime(w.created_at) DESC LIMIT 6`;
+    args = [...kws, req.params.id, srcWork.project_id];
+  }
+  const rows = db.prepare(sql).all(...args);
   res.json(rows.map(hydrateWork));
 });
 

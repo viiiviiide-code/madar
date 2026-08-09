@@ -273,7 +273,7 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
                   <input className="stat-lbl-in" value={s.label} list="stat-label-options" placeholder="عنوان آمار"
                     onChange={(e) => setStats(project.stats.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} />
                   <textarea className="stat-descr-in" placeholder="توضیح (اختیاری)" value={s.descr || ""} rows={1}
-                    onInput={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
+                    ref={(el) => { if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; } }}
                     onChange={(e) => setStats(project.stats.map((x, j) => j === i ? { ...x, descr: e.target.value } : x))} />
                   <div className="stat-tools">
                     <button disabled={i === 0}

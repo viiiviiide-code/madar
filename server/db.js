@@ -115,6 +115,16 @@ CREATE TABLE IF NOT EXISTS work_platform_views (
   views INTEGER DEFAULT 0,
   FOREIGN KEY (work_id) REFERENCES works(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS tv_broadcasts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  work_id INTEGER,
+  platform_id INTEGER,   -- a platform row with type='tv' (the network)
+  date TEXT,             -- ISO 'YYYY-MM-DD'
+  time TEXT,             -- 'HH:MM'
+  FOREIGN KEY (work_id) REFERENCES works(id) ON DELETE CASCADE,
+  FOREIGN KEY (platform_id) REFERENCES platforms(id) ON DELETE CASCADE
+);
 `);
 
 /* ---------- migrations (for DBs created before these columns) ---------- */
@@ -130,6 +140,7 @@ addCol("works", "featured", "INTEGER DEFAULT 0");
 addCol("work_platform_views", "likes", "INTEGER DEFAULT 0");
 addCol("work_platform_views", "comments", "INTEGER DEFAULT 0");
 addCol("platforms", "logo_url", "TEXT");
+addCol("platforms", "type", "TEXT DEFAULT 'social'"); // 'social' | 'tv'
 addCol("templates", "theme", "TEXT DEFAULT 'orbit'");
 addCol("templates", "font", "TEXT DEFAULT 'Vazirmatn'");
 

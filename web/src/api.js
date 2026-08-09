@@ -67,7 +67,7 @@ export const api = {
   delType: (id) => del("/api/types/" + id),
 
   platforms: () => get("/api/platforms"),
-  addPlatform: (label, logo_url) => send("POST")("/api/platforms", { label, logo_url: logo_url || null }),
+  addPlatform: (label, logo_url, type) => send("POST")("/api/platforms", { label, logo_url: logo_url || null, type: type === "tv" ? "tv" : "social" }),
   updatePlatform: (id, patch) => send("PUT")("/api/platforms/" + id, patch),
   delPlatform: (id) => del("/api/platforms/" + id),
 
