@@ -46,8 +46,17 @@ export default function App() {
   const [allProjects, setAllProjects] = useState([]);
   const [view, setView] = useState(() => viewFromLocation());
   const isAdminUser = user?.role === "admin";
-  const [adminView, setAdminView] = useState(true); // فقط برای کاربر مدیریت: پیش‌نمایش به‌صورت حالت نمایش
+  const [adminView, setAdminView] = useState(() => {
+    try { return localStorage.getItem("madar_admin_view_mode") !== "0"; } catch { return true; }
+  }); // فقط برای کاربر مدیریت: پیش‌نمایش به‌صورت حالت نمایش — بین رفرش‌ها حفظ می‌شود
   const admin = isAdminUser && adminView;
+  const toggleAdminView = () => {
+    setAdminView((v) => {
+      const next = !v;
+      try { localStorage.setItem("madar_admin_view_mode", next ? "1" : "0"); } catch {}
+      return next;
+    });
+  };
   const [sidebar, setSidebar] = useState(false);
   const [mode, setMode] = useState({ type: "date" });   // {type:'date'} | {type:'template', id, label}
   const [homeTool, setHomeTool] = useState(null);        // null|'define'|'template'|'settings'
@@ -276,7 +285,7 @@ export default function App() {
           {isAdminUser && (
             <div className="sb-section sb-admin">
               <div className="sb-section-t">مدیریت</div>
-              <button className={`sb-item toggle ${admin ? "on" : ""}`} onClick={() => setAdminView((v) => !v)}>
+              <button className={`sb-item toggle ${admin ? "on" : ""}`} onClick={toggleAdminView}>
                 <Settings size={16} className="sb-ic" />
                 <span className="sb-title">حالت مدیریت</span>
                 <span className={`sb-switch ${admin ? "on" : ""}`}><span /></span>
@@ -324,8 +333,10 @@ export default function App() {
             projectId={view.id} admin={admin}
             initialQuery={view.q || ""}
             types={types} platforms={platforms} reloadMeta={loadMeta}
+            templates={templates}
             goHome={() => go({ name: "home" })}
             openWork={(workId) => go({ name: "work", id: view.id, workId })}
+            onProjectChanged={() => { loadProjects(); loadTemplates(); }}
           />
         )}
 

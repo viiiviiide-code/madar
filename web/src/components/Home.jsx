@@ -489,6 +489,7 @@ function TemplatePanel({ templates, reload, onClose, flash, onEnterTemplate, ini
   const [edit, setEdit] = useState(initial
     ? { label: initial.label, from_date: initial.from_date, to_date: initial.to_date, theme: initial.theme || "orbit", font: initial.font || "Vazirmatn" }
     : null);
+  const [newOpen, setNewOpen] = useState(!initialEditId);
 
   const add = async () => {
     if (!draft.label.trim()) return;
@@ -560,31 +561,38 @@ function TemplatePanel({ templates, reload, onClose, flash, onEnterTemplate, ini
       </div>
 
       <div className="tpl-new">
-        <div className="tp-subhead">تمپلیت جدید</div>
-        <input placeholder="عنوان تمپلیت *" value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} />
-        <div className="dp-row">
-          <label className="dp-lbl">از</label>
-          <JalaliInput value={draft.from_date} onChange={(d) => setDraft({ ...draft, from_date: d })} />
-        </div>
-        <div className="dp-row">
-          <label className="dp-lbl">تا</label>
-          <JalaliInput value={draft.to_date} onChange={(d) => setDraft({ ...draft, to_date: d })} />
-        </div>
-        <div className="dp-row">
-          <label className="dp-lbl">تم گرافیکی</label>
-          <select className="full-select" value={draft.theme} onChange={(e) => setDraft({ ...draft, theme: e.target.value })}>
-            {TEMPLATE_THEMES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-          </select>
-        </div>
-        <div className="dp-row">
-          <label className="dp-lbl">فونت</label>
-          <select className="full-select" style={{ fontFamily: draft.font }} value={draft.font} onChange={(e) => setDraft({ ...draft, font: e.target.value })}>
-            {TEMPLATE_FONTS.map((f) => <option key={f.key} value={f.key} style={{ fontFamily: f.key }}>{f.label}</option>)}
-          </select>
-        </div>
-        <div className="dp-actions">
-          <button className="btn gold sm" disabled={!draft.label.trim()} onClick={add}><Plus size={14} /> افزودن تمپلیت</button>
-        </div>
+        <button className="tp-subhead collapsible" onClick={() => setNewOpen((v) => !v)}>
+          <ChevronDown size={14} className={`sb-chevron ${newOpen ? "open" : ""}`} />
+          تمپلیت جدید
+        </button>
+        {newOpen && (
+          <>
+            <input placeholder="عنوان تمپلیت *" value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} />
+            <div className="dp-row">
+              <label className="dp-lbl">از</label>
+              <JalaliInput value={draft.from_date} onChange={(d) => setDraft({ ...draft, from_date: d })} />
+            </div>
+            <div className="dp-row">
+              <label className="dp-lbl">تا</label>
+              <JalaliInput value={draft.to_date} onChange={(d) => setDraft({ ...draft, to_date: d })} />
+            </div>
+            <div className="dp-row">
+              <label className="dp-lbl">تم گرافیکی</label>
+              <select className="full-select" value={draft.theme} onChange={(e) => setDraft({ ...draft, theme: e.target.value })}>
+                {TEMPLATE_THEMES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+              </select>
+            </div>
+            <div className="dp-row">
+              <label className="dp-lbl">فونت</label>
+              <select className="full-select" style={{ fontFamily: draft.font }} value={draft.font} onChange={(e) => setDraft({ ...draft, font: e.target.value })}>
+                {TEMPLATE_FONTS.map((f) => <option key={f.key} value={f.key} style={{ fontFamily: f.key }}>{f.label}</option>)}
+              </select>
+            </div>
+            <div className="dp-actions">
+              <button className="btn gold sm" disabled={!draft.label.trim()} onClick={add}><Plus size={14} /> افزودن تمپلیت</button>
+            </div>
+          </>
+        )}
       </div>
     </Panel>
   );

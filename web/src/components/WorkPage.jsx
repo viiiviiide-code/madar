@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronRight, ChevronLeft, Maximize2, Eye, Plus, X, Save, Check, Trash2, Star, Link2, Camera, Heart, MessageCircle } from "lucide-react";
+import { ChevronRight, ChevronLeft, Maximize2, Eye, Plus, X, Save, Check, Trash2, Star, Link2, Camera, Heart, MessageCircle, Edit3 } from "lucide-react";
 import { api } from "../api";
 import { formatJalali, toFa, jalaliToISO } from "../jalali";
 import JalaliInput from "./JalaliInput.jsx";
@@ -9,9 +9,7 @@ import { Media, gradFor, VideoThumb, mediaKind, linkHost } from "./ProjectPage.j
 /* compact number display */
 function fmtNum(n) {
   const v = Number(n) || 0;
-  if (v >= 1_000_000) return toFa((v / 1_000_000).toFixed(1)) + " میلیون";
-  if (v >= 1_000)     return toFa(Math.round(v / 1_000))      + " هزار";
-  return toFa(v);
+  return toFa(v.toLocaleString("en-US"));
 }
 
 export default function WorkPage({ workId, projectId, admin, platforms, reloadMeta, goBack, openWork, openProjectWithQuery }) {
@@ -19,6 +17,8 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
   const [similar,     setSimilar]     = useState([]);
   const [draft,       setDraft]       = useState(null);
   const [newPlatform, setNewPlatform] = useState("");
+  const [renamingId, setRenamingId] = useState(null);
+  const [renameVal, setRenameVal] = useState("");
   const [newPlatformLogo, setNewPlatformLogo] = useState(null);
   const platformLogoRef = useRef(null);
   const [saved,       setSaved]       = useState(false); // visual feedback
@@ -45,13 +45,20 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
     totalViews: Number(w?.totalViews) || 0,
   });
 
+  const editDraftKey = (id) => `madar_draft_workedit_${id}`;
+
   const load = async () => {
     try {
       const w = await api.work(workId);
       if (!w || w.error || !w.id) { setNotFound(true); return; }
       const nw = normalize(w);
       setWork(nw);
-      setDraft(JSON.parse(JSON.stringify(nw)));
+      let initialDraft = JSON.parse(JSON.stringify(nw));
+      try {
+        const saved = JSON.parse(localStorage.getItem(editDraftKey(workId)) || "null");
+        if (saved) initialDraft = saved;
+      } catch {}
+      setDraft(initialDraft);
       const sim = await api.similar(workId);
       setSimilar(Array.isArray(sim) ? sim.map(normalize) : []);
     } catch (e) {
@@ -59,6 +66,12 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
     }
   };
   useEffect(() => { load(); setActiveIdx(0); }, [workId]);
+
+  // persist edits to localStorage so navigating away or a refresh mid-edit doesn't lose them
+  useEffect(() => {
+    if (!admin || !draft) return;
+    try { localStorage.setItem(editDraftKey(workId), JSON.stringify(draft)); } catch {}
+  }, [draft, admin, workId]);
 
   // keyboard arrows navigate the gallery (declared before any conditional return
   // so hook order stays stable). RTL-friendly: Left = next, Right = previous.
@@ -111,6 +124,8 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
   const pvMap = {};
   draft.platformViews.forEach((pv) => (pvMap[pv.platform_id] = pv));
   const draftTotal = Object.values(pvMap).reduce((a, pv) => a + (Number(pv.views) || 0), 0);
+  const draftTotalLikes = Object.values(pvMap).reduce((a, pv) => a + (Number(pv.likes) || 0), 0);
+  const draftTotalComments = Object.values(pvMap).reduce((a, pv) => a + (Number(pv.comments) || 0), 0);
 
   const togglePlatform = (pid, checked) => {
     let list = draft.platformViews.filter((pv) => pv.platform_id !== pid);
@@ -141,6 +156,7 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
       const nw = normalize(res);
       setWork(nw);
       setDraft(JSON.parse(JSON.stringify(nw)));
+      try { localStorage.removeItem(editDraftKey(work.id)); } catch {}
       const sim = await api.similar(work.id);
       setSimilar(Array.isArray(sim) ? sim.map(normalize) : []);
       setSaved(true);
@@ -169,6 +185,15 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
       await api.updatePlatform(pid, { logo_url: r.url });
       await reloadMeta();
     } catch (e) {}
+  };
+  const commitRename = async (pid) => {
+    const v = renameVal.trim();
+    setRenamingId(null);
+    if (!v) return;
+    const cur = platforms.find((p) => p.id === pid);
+    if (cur && v === cur.label) return;
+    await api.updatePlatform(pid, { label: v });
+    await reloadMeta();
   };
 
   const kindOf = (file) => {
@@ -437,8 +462,31 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
                                 onChange={(e) => uploadPlatformLogo(p.id, e.target.files?.[0])} />
                             </label>
                           </span>
-                          <span className="pv-plabel-t">{p.label}</span>
+                          {renamingId === p.id ? (
+                            <input className="pv-rename-in" autoFocus value={renameVal}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => setRenameVal(e.target.value)}
+                              onKeyDown={(e) => e.key === "Enter" && commitRename(p.id)}
+                              onBlur={() => commitRename(p.id)} />
+                          ) : (
+                            <span className="pv-plabel-t">{p.label}</span>
+                          )}
                         </label>
+                        <div className="pv-card-tools">
+                          <button className="mini" title="تغییر نام" onClick={(e) => { e.stopPropagation(); setRenamingId(p.id); setRenameVal(p.label); }}>
+                            <Edit3 size={12} />
+                          </button>
+                          <button className="mini danger" title="حذف پلتفرم"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (confirm(`پلتفرم «${p.label}» حذف شود؟ آمار ثبت‌شده برایش هم پاک می‌شود.`)) {
+                                await api.delPlatform(p.id);
+                                await reloadMeta();
+                              }
+                            }}>
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                         {on && (
                           <div className="pv-nums">
                             <label className="pv-num-lbl"><Eye size={13} />
@@ -471,11 +519,18 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
                   <button className="mini" onClick={addPlatform}><Plus size={14} /></button>
                 </div>
                 {newPlatformLogo && <span className="muted-sm">لوگو انتخاب شد: {newPlatformLogo.name}</span>}
-                <div className="pv-total">
-                  <Eye size={18} className="cyan" />
-                  <div>
-                    <span className="info-k">مجموع بازدید</span>
-                    <div className="info-v big">{fmtNum(draftTotal)}</div>
+                <div className="pv-totals">
+                  <div className="pv-total-item">
+                    <Eye size={16} className="cyan" />
+                    <div><span className="info-k">جمع بازدید</span><div className="info-v">{fmtNum(draftTotal)}</div></div>
+                  </div>
+                  <div className="pv-total-item">
+                    <Heart size={16} className="cyan" />
+                    <div><span className="info-k">جمع لایک</span><div className="info-v">{fmtNum(draftTotalLikes)}</div></div>
+                  </div>
+                  <div className="pv-total-item">
+                    <MessageCircle size={16} className="cyan" />
+                    <div><span className="info-k">جمع کامنت</span><div className="info-v">{fmtNum(draftTotalComments)}</div></div>
                   </div>
                 </div>
               </>
@@ -485,28 +540,33 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
                   {work.platformViews.length === 0
                     ? <span className="muted-sm">ثبت نشده</span>
                     : work.platformViews.map((pv) => (
-                      <div key={pv.platform_id} className="pv-chip">
+                      <div key={pv.platform_id} className="pv-line">
                         <span className="plat-logo-wrap sm">
                           {pv.logo_url
                             ? <img className="plat-logo" src={pv.logo_url} alt="" />
                             : <span className="plat-logo ph">{pv.label?.[0] || "?"}</span>}
                         </span>
-                        <div className="pv-chip-body">
-                          <span className="pv-chip-name">{pv.label}</span>
-                          <div className="pv-chip-stats">
-                            <b><Eye size={12} /> {fmtNum(pv.views)}</b>
-                            {!!pv.likes && <b><Heart size={12} /> {fmtNum(pv.likes)}</b>}
-                            {!!pv.comments && <b><MessageCircle size={12} /> {fmtNum(pv.comments)}</b>}
-                          </div>
+                        <span className="pv-line-name">{pv.label}</span>
+                        <div className="pv-line-stats">
+                          <b><Eye size={13} /> {fmtNum(pv.views)}</b>
+                          <b><Heart size={13} /> {fmtNum(pv.likes)}</b>
+                          <b><MessageCircle size={13} /> {fmtNum(pv.comments)}</b>
                         </div>
                       </div>
                     ))}
                 </div>
-                <div className="pv-total">
-                  <Eye size={18} className="cyan" />
-                  <div>
-                    <span className="info-k">مجموع بازدید</span>
-                    <div className="info-v big">{fmtNum(work.totalViews)}</div>
+                <div className="pv-totals">
+                  <div className="pv-total-item">
+                    <Eye size={16} className="cyan" />
+                    <div><span className="info-k">جمع بازدید</span><div className="info-v">{fmtNum(work.totalViews)}</div></div>
+                  </div>
+                  <div className="pv-total-item">
+                    <Heart size={16} className="cyan" />
+                    <div><span className="info-k">جمع لایک</span><div className="info-v">{fmtNum(work.totalLikes)}</div></div>
+                  </div>
+                  <div className="pv-total-item">
+                    <MessageCircle size={16} className="cyan" />
+                    <div><span className="info-k">جمع کامنت</span><div className="info-v">{fmtNum(work.totalComments)}</div></div>
                   </div>
                 </div>
               </>
