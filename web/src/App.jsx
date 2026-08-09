@@ -26,7 +26,13 @@ function viewFromLocation() {
   if (name === "featured" && qs.get("tid")) {
     return { name: "featured", tid: qs.get("tid"), label: qs.get("label") || "" };
   }
-  return { name: "home" };
+  // home (default) — also remembers which "mode" (date range vs a specific template)
+  // was active, so a hard refresh or the browser's back button doesn't dump the
+  // person onto a blank/template-less screen.
+  if (qs.get("m") === "template" && qs.get("mid")) {
+    return { name: "home", modeType: "template", modeId: qs.get("mid"), modeLabel: qs.get("mlabel") || "" };
+  }
+  return { name: "home", modeType: "date" };
 }
 function locationFromView(v) {
   const qs = new URLSearchParams();
@@ -34,7 +40,24 @@ function locationFromView(v) {
   if (v.name === "project" && v.id) { qs.set("id", v.id); if (v.q) qs.set("q", v.q); }
   if (v.name === "work" && v.id && v.workId) { qs.set("id", v.id); qs.set("workId", v.workId); }
   if (v.name === "featured" && v.tid) { qs.set("tid", v.tid); if (v.label) qs.set("label", v.label); }
+  if (v.name === "home") {
+    if (v.modeType === "template" && v.modeId) {
+      qs.set("m", "template"); qs.set("mid", v.modeId); if (v.modeLabel) qs.set("mlabel", v.modeLabel);
+    } else {
+      qs.set("m", "date");
+    }
+  }
   return "?" + qs.toString();
+}
+function modeFromView(v) {
+  return v?.name === "home" && v.modeType === "template" && v.modeId
+    ? { type: "template", id: v.modeId, label: v.modeLabel || "" }
+    : { type: "date" };
+}
+function viewForMode(m) {
+  return m?.type === "template" && m.id
+    ? { name: "home", modeType: "template", modeId: m.id, modeLabel: m.label || "" }
+    : { name: "home", modeType: "date" };
 }
 
 export default function App() {
@@ -58,7 +81,7 @@ export default function App() {
     });
   };
   const [sidebar, setSidebar] = useState(false);
-  const [mode, setMode] = useState({ type: "date" });   // {type:'date'} | {type:'template', id, label}
+  const [mode, setMode] = useState(() => modeFromView(viewFromLocation()));   // {type:'date'} | {type:'template', id, label}
   const [homeTool, setHomeTool] = useState(null);        // null|'define'|'template'|'settings'
   const [actOpen, setActOpen] = useState(true);          // "untemplated" activities list collapsed/expanded
   const [expandedTpl, setExpandedTpl] = useState({});    // per-template nested-activities expand state
@@ -96,7 +119,12 @@ export default function App() {
   useEffect(() => { if (user && view.name === "home") { loadProjects(); loadTemplates(); } }, [view.name, user]);
 
   useEffect(() => {
-    const onPop = (e) => { popping.current = true; setView(e.state || viewFromLocation()); };
+    const onPop = (e) => {
+      popping.current = true;
+      const next = e.state || viewFromLocation();
+      setView(next);
+      if (next.name === "home") setMode(modeFromView(next));
+    };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
@@ -113,30 +141,30 @@ export default function App() {
   };
 
   // sidebar actions
-  const pickDateMode = () => { setMode({ type: "date" }); setHomeTool(null); setSidebar(false); go({ name: "home" }); };
-  const pickTemplate = (t) => { setMode({ type: "template", id: t.id, label: t.label }); setHomeTool(null); setSidebar(false); go({ name: "home" }); };
-  const openTool = (tool) => { setHomeTool(tool); setSidebar(false); go({ name: "home" }); };
+  const pickDateMode = () => { setMode({ type: "date" }); setHomeTool(null); setSidebar(false); go(viewForMode({ type: "date" })); };
+  const pickTemplate = (t) => { setMode({ type: "template", id: t.id, label: t.label }); setHomeTool(null); setSidebar(false); go(viewForMode({ type: "template", id: t.id, label: t.label })); };
+  const openTool = (tool) => { setHomeTool(tool); setSidebar(false); go(viewForMode(mode)); };
   const openActivity = (p) => { setSidebar(false); go({ name: "project", id: p.id }); };
   const newActivityInTemplate = (t) => {
     setMode({ type: "template", id: t.id, label: t.label });
-    setHomeTool("define"); setSidebar(false); go({ name: "home" });
+    setHomeTool("define"); setSidebar(false); go(viewForMode({ type: "template", id: t.id, label: t.label }));
   };
   const newActivityUntemplated = () => {
     setMode({ type: "date" });
-    setHomeTool("define"); setSidebar(false); go({ name: "home" });
+    setHomeTool("define"); setSidebar(false); go(viewForMode({ type: "date" }));
   };
   const delTemplateFromSidebar = async (t, e) => {
     e.stopPropagation();
     if (!confirm(`تمپلیت «${t.label}» حذف شود؟ فعالیت‌های داخلش حذف نمی‌شوند، فقط از این تمپلیت جدا می‌شوند.`)) return;
     await api.delTemplate(t.id);
-    if (mode.type === "template" && mode.id === t.id) setMode({ type: "date" });
+    if (mode.type === "template" && mode.id === t.id) { setMode({ type: "date" }); go(viewForMode({ type: "date" })); }
     loadTemplates(); loadProjects();
   };
   const delActivityFromSidebar = async (p, e) => {
     e.stopPropagation();
     if (!confirm(`فعالیت «${p.title}» حذف شود؟`)) return;
     await api.delProject(p.id);
-    if (view.name === "project" && String(view.id) === String(p.id)) go({ name: "home" });
+    if (view.name === "project" && String(view.id) === String(p.id)) go(viewForMode(mode));
     loadProjects(); loadTemplates();
   };
 
@@ -149,7 +177,7 @@ export default function App() {
       <header className="topbar">
         <div className="topbar-right">
           <button className="icon-btn" onClick={() => setSidebar(true)} title="منو"><Menu size={18} /></button>
-          <button className="brand" onClick={() => go({ name: "home" })}>
+          <button className="brand" onClick={() => go(viewForMode(mode))}>
             <span className="brand-mark" />
             <span><b>تلاش</b><em>آرشیو فعالیت‌ها و آثار مجموعه</em></span>
           </button>
@@ -314,7 +342,7 @@ export default function App() {
 
       <ErrorBoundary
         key={view.name + ":" + (view.id || "") + ":" + (view.workId || "") + ":" + (view.tid || "")}
-        onReset={() => go({ name: "home" })}
+        onReset={() => go(viewForMode(mode))}
       >
         {view.name === "home" && (
           <Home
@@ -334,7 +362,7 @@ export default function App() {
             initialQuery={view.q || ""}
             types={types} platforms={platforms} reloadMeta={loadMeta}
             templates={templates}
-            goHome={() => go({ name: "home" })}
+            goHome={() => go(viewForMode(mode))}
             openWork={(workId) => go({ name: "work", id: view.id, workId })}
             onProjectChanged={() => { loadProjects(); loadTemplates(); }}
           />
@@ -353,7 +381,7 @@ export default function App() {
         {view.name === "featured" && (
           <FeaturedWorks
             templateId={view.tid} templateLabel={view.label}
-            goBack={() => go({ name: "home" })}
+            goBack={() => go(viewForMode({ type: "template", id: view.tid, label: view.label }))}
             openWork={(projectId, workId) => go({ name: "work", id: projectId, workId })}
           />
         )}

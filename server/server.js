@@ -472,6 +472,35 @@ app.delete("/api/works/:id", requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+/* copy a single work (with its keywords/media/platform-views) into another activity,
+   which may belong to a different template — or no template at all. */
+app.post("/api/works/:id/duplicate", requireAdmin, (req, res) => {
+  const src = db.prepare("SELECT * FROM works WHERE id=?").get(req.params.id);
+  if (!src) return res.status(404).json({ error: "not found" });
+  const targetProjectId = req.body.project_id;
+  const targetProject = db.prepare("SELECT id FROM projects WHERE id=?").get(targetProjectId);
+  if (!targetProject) return res.status(400).json({ error: "فعالیت مقصد پیدا نشد" });
+
+  const newId = db.transaction(() => {
+    const now = new Date().toISOString();
+    const r = db.prepare(
+      `INSERT INTO works (project_id,type,title,descr,axis,campaign,event_date,url,featured,created_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`
+    ).run(targetProjectId, src.type, src.title, src.descr, src.axis, src.campaign, src.event_date, src.url, src.featured, now);
+    const wid = r.lastInsertRowid;
+    const insKw = db.prepare("INSERT INTO work_keywords (work_id,text) VALUES (?,?)");
+    keywordsOf(src.id).forEach((k) => insKw.run(wid, k));
+    const insPV = db.prepare("INSERT INTO work_platform_views (work_id,platform_id,views,likes,comments) VALUES (?,?,?,?,?)");
+    db.prepare("SELECT platform_id,views,likes,comments FROM work_platform_views WHERE work_id=?").all(src.id)
+      .forEach((pv) => insPV.run(wid, pv.platform_id, pv.views, pv.likes, pv.comments));
+    const insMedia = db.prepare("INSERT INTO work_media (work_id,url,kind,sort_order) VALUES (?,?,?,?)");
+    mediaOf(src.id).forEach((m) => insMedia.run(wid, m.url, m.kind, m.sort_order));
+    return wid;
+  })();
+
+  res.json(hydrateWork(db.prepare("SELECT * FROM works WHERE id=?").get(newId)));
+});
+
 /* similar works: shares >=1 keyword (OR), ranked by shared count */
 app.get("/api/works/:id/similar", (req, res) => {
   const kws = keywordsOf(req.params.id);

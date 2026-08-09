@@ -321,6 +321,14 @@ export default function Home({
             flash("فعالیت به‌طور کامل کپی شد ✓");
             setEditId(null);
           }}
+          onCreateTemplate={async (label) => {
+            const created = await api.addTemplate({
+              label, from_date: jalaliToISO(1404, 1, 1), to_date: jalaliToISO(1404, 12, 1),
+              theme: "orbit", font: "Vazirmatn",
+            });
+            await reloadTemplates();
+            return created;
+          }}
           onClose={() => setEditId(null)}
         />
       )}
@@ -635,10 +643,12 @@ function SettingsPanel({ orbits, labelFont, anim, updateSetting, onClose }) {
   );
 }
 
-function NodeEditor({ p, templates, onPatch, onSave, onEnter, onDelete, onDuplicate, onClose }) {
+function NodeEditor({ p, templates, onPatch, onSave, onEnter, onDelete, onDuplicate, onCreateTemplate, onClose }) {
   const font = p.node_font || 12;
   const [dupTarget, setDupTarget] = useState("");
   const [duping, setDuping] = useState(false);
+  const [newTplMode, setNewTplMode] = useState(false);
+  const [newTplLabel, setNewTplLabel] = useState("");
   return (
     <Panel title="ویرایش فعالیت" onClose={onClose}>
       <div className="dp-row">
@@ -679,20 +689,43 @@ function NodeEditor({ p, templates, onPatch, onSave, onEnter, onDelete, onDuplic
 
       <div className="ne-duplicate">
         <span className="dp-lbl">کپی کامل این فعالیت به تمپلیت دیگر</span>
-        <div className="dp-row">
-          <select className="full-select" value={dupTarget} onChange={(e) => setDupTarget(e.target.value)}>
-            <option value="">— بدون تمپلیت —</option>
-            {templates.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-          </select>
-          <button className="btn light sm" disabled={duping}
-            onClick={async () => {
-              setDuping(true);
-              try { await onDuplicate(dupTarget || null); }
-              finally { setDuping(false); }
-            }}>
-            <Copy size={13} /> {duping ? "در حال کپی…" : "کپی کامل فعالیت"}
-          </button>
-        </div>
+        {!newTplMode ? (
+          <>
+            <div className="dp-row">
+              <select className="full-select" value={dupTarget} onChange={(e) => setDupTarget(e.target.value)}>
+                <option value="">— بدون تمپلیت —</option>
+                {templates.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+              </select>
+              <button className="btn light sm" disabled={duping}
+                onClick={async () => {
+                  setDuping(true);
+                  try { await onDuplicate(dupTarget || null); }
+                  finally { setDuping(false); }
+                }}>
+                <Copy size={13} /> {duping ? "در حال کپی…" : "کپی کامل فعالیت"}
+              </button>
+            </div>
+            <button type="button" className="ne-newtpl-toggle" onClick={() => setNewTplMode(true)}>
+              + یا یک تمپلیت جدید بساز و فعالیت را به آن منتقل کن
+            </button>
+          </>
+        ) : (
+          <div className="dp-row">
+            <input placeholder="عنوان تمپلیت جدید *" value={newTplLabel} onChange={(e) => setNewTplLabel(e.target.value)} />
+            <button className="btn ghost sm" onClick={() => { setNewTplMode(false); setNewTplLabel(""); }}>انصراف</button>
+            <button className="btn gold sm" disabled={!newTplLabel.trim() || duping}
+              onClick={async () => {
+                setDuping(true);
+                try {
+                  const created = await onCreateTemplate(newTplLabel.trim());
+                  if (created?.id) await onDuplicate(created.id);
+                  setNewTplMode(false); setNewTplLabel("");
+                } finally { setDuping(false); }
+              }}>
+              <Copy size={13} /> {duping ? "در حال ساخت و کپی…" : "بساز و کپی کن"}
+            </button>
+          </div>
+        )}
         <span className="muted-sm">همهٔ آثار، آمارها، کلیدواژه‌ها و بازدیدها هم کپی می‌شوند؛ خودِ این فعالیت دست‌نخورده می‌ماند.</span>
       </div>
 
