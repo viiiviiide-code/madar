@@ -218,7 +218,7 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
           <div className="studio-meta">
             <span className="sm-eyebrow">
               {project.start_date ? formatJalali(project.start_date) : "بدون تاریخ"}
-              {project.end_date ? ` تا ${formatJalali(project.end_date)}` : ""} — فعالیت
+              {project.end_date ? ` تا ${formatJalali(project.end_date)}` : ""}
             </span>
             <h1>{project.title}</h1>
             {project.sub && <p>{project.sub}</p>}
