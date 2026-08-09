@@ -1043,7 +1043,7 @@ textarea.ed{min-height:70px;resize:vertical}
 /* full-bleed top row: back button flush to the right edge */
 .page-top{
   width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);
-  padding:0 34px 14px;display:flex;justify-content:flex-start;
+  padding:0 34px 14px;display:flex;justify-content:space-between;align-items:center;
 }
 .page-top .back{margin:0}
 
