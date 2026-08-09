@@ -2,11 +2,12 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ChevronRight, Plus, Trash2, MoveRight, MoveLeft, Search, ArrowUpDown,
   Upload, Play, Maximize2, Minimize2, LayoutGrid, List as ListIcon, Eye, RefreshCw, X,
-  RotateCcw, Volume2, VolumeX, Film, Info, Star, Copy, Link2, Camera, Save, Edit3,
+  RotateCcw, Volume2, VolumeX, Film, Info, Star, Copy, Link2, Camera, Save, Edit3, FolderInput,
 } from "lucide-react";
 import { api } from "../api";
 import { formatJalali, toFa, jalaliToISO, isValidISO } from "../jalali";
 import KeywordInput from "./KeywordInput.jsx";
+import CopyWorkModal from "./CopyWorkModal.jsx";
 
 /* tiny localStorage-backed draft helper so a mid-typing refresh doesn't lose form data */
 function loadWorkDraft(key) {
@@ -42,6 +43,7 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
   const [statLabels, setStatLabels] = useState([]);
   const [openStat, setOpenStat] = useState(null);
   const [copySource, setCopySource] = useState(null);
+  const [copyWorkTarget, setCopyWorkTarget] = useState(null);
   const teaserRef  = useRef(null);
   const [teaserPct, setTeaserPct] = useState(null);
   const [editActOpen, setEditActOpen] = useState(false);
@@ -333,6 +335,15 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
           />
         )}
 
+        {copyWorkTarget && (
+          <CopyWorkModal
+            work={copyWorkTarget}
+            currentProjectId={project.id}
+            onClose={() => setCopyWorkTarget(null)}
+            onDone={() => { setCopyWorkTarget(null); setRefresh((x) => x + 1); }}
+          />
+        )}
+
         {/* unified toolbar */}
         <div className="works-toolbar">
           <div className="search-box small flex-1">
@@ -385,6 +396,10 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
                       onClick={(e) => { e.stopPropagation(); setCopySource(w); setAddOpen(true); }}>
                       <Copy size={14} />
                     </button>
+                    <button className="card-copy" title="کپی به فعالیت دیگر"
+                      onClick={(e) => { e.stopPropagation(); setCopyWorkTarget(w); }}>
+                      <FolderInput size={14} />
+                    </button>
                     <button className="card-del" title="حذف اثر"
                       onClick={async (e) => {
                         e.stopPropagation();
@@ -425,6 +440,10 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
                         <button className="row-copy" title="کپی اطلاعات این اثر"
                           onClick={(e) => { e.stopPropagation(); setCopySource(w); setAddOpen(true); }}>
                           <Copy size={14} />
+                        </button>
+                        <button className="row-copy" title="کپی به فعالیت دیگر"
+                          onClick={(e) => { e.stopPropagation(); setCopyWorkTarget(w); }}>
+                          <FolderInput size={14} />
                         </button>
                         <button className="row-del" title="حذف اثر"
                           onClick={async (e) => {

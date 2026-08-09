@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronRight, ChevronLeft, Maximize2, Eye, Plus, X, Save, Check, Trash2, Star, Link2, Camera, Heart, MessageCircle, Edit3 } from "lucide-react";
+import { ChevronRight, ChevronLeft, Maximize2, Eye, Plus, X, Save, Check, Trash2, Star, Link2, Camera, Heart, MessageCircle, Edit3, FolderInput } from "lucide-react";
 import { api } from "../api";
 import { formatJalali, toFa, jalaliToISO } from "../jalali";
 import JalaliInput from "./JalaliInput.jsx";
 import KeywordInput from "./KeywordInput.jsx";
+import CopyWorkModal from "./CopyWorkModal.jsx";
 import { Media, gradFor, VideoThumb, mediaKind, linkHost } from "./ProjectPage.jsx";
 
 /* compact number display */
@@ -18,6 +19,7 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
   const [draft,       setDraft]       = useState(null);
   const [newPlatform, setNewPlatform] = useState("");
   const [renamingId, setRenamingId] = useState(null);
+  const [copyTarget, setCopyTarget] = useState(false);
   const [renameVal, setRenameVal] = useState("");
   const [newPlatformLogo, setNewPlatformLogo] = useState(null);
   const platformLogoRef = useRef(null);
@@ -578,6 +580,9 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
               <button className={`btn ${saved ? "saved" : "gold"}`} onClick={save}>
                 {saved ? <><Check size={15} /> ذخیره شد!</> : <><Save size={15} /> ذخیرهٔ تغییرات</>}
               </button>
+              <button className="btn light" onClick={() => setCopyTarget(true)}>
+                <FolderInput size={15} /> کپی به فعالیت دیگر
+              </button>
               <button className="btn ghost danger" onClick={async () => {
                 if (confirm("این اثر برای همیشه حذف شود؟")) {
                   await api.delWork(work.id);
@@ -590,6 +595,15 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
           )}
         </aside>
       </div>
+
+      {copyTarget && (
+        <CopyWorkModal
+          work={work}
+          currentProjectId={projectId}
+          onClose={() => setCopyTarget(false)}
+          onDone={() => setCopyTarget(false)}
+        />
+      )}
 
       {/* similar works */}
       {similar.length > 0 && (
