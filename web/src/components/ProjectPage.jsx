@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ChevronRight, Plus, Trash2, MoveRight, MoveLeft, Search, ArrowUpDown,
   Upload, Play, Maximize2, Minimize2, LayoutGrid, List as ListIcon, Eye, RefreshCw, X,
-  RotateCcw, Volume2, VolumeX, Film, Info, Star, Copy, Link2, Camera, Save,
+  RotateCcw, Volume2, VolumeX, Film, Info, Star, Copy, Link2, Camera, Save, Edit3,
 } from "lucide-react";
 import { api } from "../api";
 import { formatJalali, toFa, jalaliToISO, isValidISO } from "../jalali";
@@ -26,12 +26,10 @@ const ICONS = { video: Play, poster: Maximize2, image: LayoutGrid, audio: Eye, s
 /* ---- compact number: 420000 → ۴۲۰ هزار, 1200000 → ۱.۲ میلیون ---- */
 function fmtNum(n) {
   const v = Number(n) || 0;
-  if (v >= 1_000_000) return toFa((v / 1_000_000).toFixed(1)) + " میلیون";
-  if (v >= 1_000)     return toFa(Math.round(v / 1_000))      + " هزار";
-  return toFa(v);
+  return toFa(v.toLocaleString("en-US"));
 }
 
-export default function ProjectPage({ projectId, admin, types, reloadMeta, goHome, openWork, initialQuery = "" }) {
+export default function ProjectPage({ projectId, admin, types, reloadMeta, goHome, openWork, initialQuery = "", templates = [], onProjectChanged }) {
   const [project, setProject] = useState(null);
   const [works,   setWorks]   = useState([]);
   const [q,       setQ]       = useState(initialQuery);   // unified search
@@ -45,6 +43,9 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
   const [openStat, setOpenStat] = useState(null);
   const [copySource, setCopySource] = useState(null);
   const teaserRef  = useRef(null);
+  const [teaserPct, setTeaserPct] = useState(null);
+  const [editActOpen, setEditActOpen] = useState(false);
+  const [editAct, setEditAct] = useState(null);
   const videoRef   = useRef(null);
   const stageRef   = useRef(null);
   const [isFs, setIsFs] = useState(false);
@@ -86,9 +87,40 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
   const onTeaser = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const { url } = await api.upload(file);
-    await api.updateProject(project.id, { teaser_url: url });
-    loadProject();
+    setTeaserPct(0);
+    try {
+      const { url } = await api.uploadWithProgress(file, (pct) => setTeaserPct(pct));
+      await api.updateProject(project.id, { teaser_url: url });
+      await loadProject();
+    } finally {
+      setTeaserPct(null);
+      if (teaserRef.current) teaserRef.current.value = "";
+    }
+  };
+
+  const openActivityEdit = () => {
+    setEditAct({
+      title: project.title, sub: project.sub || "",
+      start_date: project.start_date, end_date: project.end_date || "",
+      template_id: project.template_id || "",
+    });
+    setEditActOpen(true);
+  };
+  const saveActivityEdit = async () => {
+    await api.updateProject(project.id, {
+      title: editAct.title, sub: editAct.sub,
+      start_date: editAct.start_date, end_date: editAct.end_date || null,
+      template_id: editAct.template_id || null,
+    });
+    setEditActOpen(false);
+    await loadProject();
+    onProjectChanged?.();
+  };
+  const delActivity = async () => {
+    if (!confirm(`فعالیت «${project.title}» حذف شود؟`)) return;
+    await api.delProject(project.id);
+    onProjectChanged?.();
+    goHome();
   };
 
   const goFullscreen = () => {
@@ -104,7 +136,53 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
         <button className="back" onClick={goHome}>
           <ChevronRight size={16} /> بازگشت
         </button>
+        {admin && (
+          <button className="btn light sm" onClick={openActivityEdit}>
+            <Edit3 size={14} /> ویرایش فعالیت
+          </button>
+        )}
       </div>
+
+      {editActOpen && editAct && (
+        <div className="modal-overlay" onClick={() => setEditActOpen(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="tp-head">
+              <h3>ویرایش فعالیت</h3>
+              <button className="x-btn" onClick={() => setEditActOpen(false)}><X size={18} /></button>
+            </div>
+            <div className="dp-row">
+              <input placeholder="عنوان فعالیت *" value={editAct.title}
+                onChange={(e) => setEditAct({ ...editAct, title: e.target.value })} />
+              <input placeholder="توضیح کوتاه" value={editAct.sub}
+                onChange={(e) => setEditAct({ ...editAct, sub: e.target.value })} />
+            </div>
+            <div className="dp-row">
+              <label className="dp-lbl">تاریخ شروع</label>
+              <JalaliInput value={editAct.start_date} onChange={(d) => setEditAct({ ...editAct, start_date: d })} />
+            </div>
+            <div className="dp-row">
+              <label className="dp-lbl">تاریخ پایان</label>
+              <JalaliInput value={editAct.end_date || editAct.start_date} onChange={(d) => setEditAct({ ...editAct, end_date: d })} />
+              {editAct.end_date && (
+                <button type="button" className="mini" onClick={() => setEditAct({ ...editAct, end_date: "" })} title="پاک کردن">
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+            <div className="dp-row">
+              <label className="dp-lbl">تمپلیت</label>
+              <select className="full-select" value={editAct.template_id} onChange={(e) => setEditAct({ ...editAct, template_id: e.target.value })}>
+                <option value="">— بدون تمپلیت —</option>
+                {templates.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+              </select>
+            </div>
+            <div className="dp-actions ne-actions">
+              <button className="btn ghost sm danger" onClick={delActivity}><Trash2 size={14} /> حذف فعالیت</button>
+              <button className="btn gold sm" disabled={!editAct.title.trim()} onClick={saveActivityEdit}><Save size={14} /> ذخیره</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ---- cinematic teaser with overlaid meta ---- */}
       <section className="studio">
@@ -119,10 +197,16 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
           ) : (
             <div className="studio-empty" style={{ background: gradFor(project.id) }}>
               <Film size={46} strokeWidth={1.2} />
-              {admin && (
+              {admin && teaserPct === null && (
                 <button className="btn light sm" onClick={() => teaserRef.current?.click()}>
                   <Upload size={15} /> بارگذاری تیزر
                 </button>
+              )}
+              {admin && teaserPct !== null && (
+                <div className="teaser-upload-progress">
+                  <div className="upload-progress-bar" style={{ width: teaserPct + "%" }} />
+                  <span className="upload-progress-t">{toFa(teaserPct)}٪</span>
+                </div>
               )}
             </div>
           )}
@@ -151,7 +235,7 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
               </button>
               {admin && (
                 <button className="ic-btn" title="تغییر تیزر" onClick={() => teaserRef.current?.click()}>
-                  <RefreshCw size={16} />
+                  {teaserPct !== null ? <span className="teaser-pct-badge">{toFa(teaserPct)}٪</span> : <RefreshCw size={16} />}
                 </button>
               )}
               <button className="ic-btn" title={isFs ? "خروج از تمام‌صفحه" : "تمام‌صفحه"} onClick={goFullscreen}>
@@ -186,7 +270,8 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
                     onChange={(e) => setStats(project.stats.map((x, j) => j === i ? { ...x, value: e.target.value } : x))} />
                   <input className="stat-lbl-in" value={s.label} list="stat-label-options" placeholder="عنوان آمار"
                     onChange={(e) => setStats(project.stats.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} />
-                  <input className="stat-descr-in" placeholder="توضیح (اختیاری)" value={s.descr || ""}
+                  <textarea className="stat-descr-in" placeholder="توضیح (اختیاری)" value={s.descr || ""} rows={1}
+                    onInput={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
                     onChange={(e) => setStats(project.stats.map((x, j) => j === i ? { ...x, descr: e.target.value } : x))} />
                   <div className="stat-tools">
                     <button disabled={i === 0}

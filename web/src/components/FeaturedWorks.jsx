@@ -6,9 +6,7 @@ import { Media } from "./ProjectPage.jsx";
 
 function fmtNum(n) {
   const v = Number(n) || 0;
-  if (v >= 1_000_000) return toFa((v / 1_000_000).toFixed(1)) + " میلیون";
-  if (v >= 1_000)     return toFa(Math.round(v / 1_000))      + " هزار";
-  return toFa(v);
+  return toFa(v.toLocaleString("en-US"));
 }
 
 export default function FeaturedWorks({ templateId, templateLabel, goBack, openWork }) {
