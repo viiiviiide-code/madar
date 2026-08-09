@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Search, X, Plus, Minus, ArrowRight, ArrowLeft, Bold, LogIn, Trash2, Save, Type, Menu,
-  CalendarRange, Layers, Edit3, Copy, LayoutGrid,
+  CalendarRange, Layers, Edit3, Copy, LayoutGrid, ChevronDown,
 } from "lucide-react";
 import { api } from "../api";
 import {
