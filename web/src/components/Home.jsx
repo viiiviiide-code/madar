@@ -249,20 +249,24 @@ export default function Home({
       )}
 
       {/* template header bar — only in template mode, gives a quick "new activity" shortcut */}
-      {isTemplate && admin && (
+      {isTemplate && (
         <div className="daterange-bar template-bar">
-          <span className="drb-label">{activeTemplate?.label || "تمپلیت"}</span>
-          <button className="btn light sm" onClick={() => { setTplEditTarget(activeTemplate?.id || null); setHomeTool("template"); }}>
-            <Edit3 size={14} /> ویرایش تمپلیت
-          </button>
-          {theme === "card" && (
-            <button className="btn light sm" onClick={autoArrangeGrid} title="کارت‌ها را به‌صورت شبکه‌ای مرتب کن">
-              <LayoutGrid size={14} /> چیدمان شبکه‌ای
-            </button>
+          <span className="drb-label tpl-title">{activeTemplate?.label || "تمپلیت"}</span>
+          {admin && (
+            <>
+              <button className="btn light sm" onClick={() => { setTplEditTarget(activeTemplate?.id || null); setHomeTool("template"); }}>
+                <Edit3 size={14} /> ویرایش تمپلیت
+              </button>
+              {theme === "card" && (
+                <button className="btn light sm" onClick={autoArrangeGrid} title="کارت‌ها را به‌صورت شبکه‌ای مرتب کن">
+                  <LayoutGrid size={14} /> چیدمان شبکه‌ای
+                </button>
+              )}
+              <button className="btn gold sm" onClick={() => setHomeTool("define")}>
+                <Plus size={14} /> فعالیت جدید
+              </button>
+            </>
           )}
-          <button className="btn gold sm" onClick={() => setHomeTool("define")}>
-            <Plus size={14} /> فعالیت جدید
-          </button>
         </div>
       )}
 

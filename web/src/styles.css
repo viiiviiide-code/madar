@@ -961,6 +961,7 @@ textarea.ed{min-height:70px;resize:vertical}
   background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px 10px;
 }
 .drb-tag{font-size:12px;color:var(--muted)}
+.template-bar .tpl-title{font-size:15px;font-weight:800;color:var(--ink)}
 .drb-group select{
   background:var(--bg2);border:1px solid var(--line);border-radius:8px;
   color:var(--ink);font-weight:700;font-size:13px;padding:6px 9px;outline:none;cursor:pointer;
