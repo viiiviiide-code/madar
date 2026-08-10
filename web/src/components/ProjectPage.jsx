@@ -30,7 +30,7 @@ function fmtNum(n) {
   return toFa(v.toLocaleString("en-US"));
 }
 
-export default function ProjectPage({ projectId, admin, types, reloadMeta, goHome, openWork, initialQuery = "", templates = [], onProjectChanged }) {
+export default function ProjectPage({ projectId, admin, types, reloadMeta, goHome, openWork, initialQuery = "", templates = [], onProjectChanged, onProjectLoaded }) {
   const [project, setProject] = useState(null);
   const [works,   setWorks]   = useState([]);
   const [q,       setQ]       = useState(initialQuery);   // unified search
@@ -57,11 +57,15 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
 
   const loadProject = () =>
     api.project(projectId)
-      .then((p) => setProject(p && p.id ? {
-        ...p,
-        stats: Array.isArray(p.stats) ? p.stats : [],
-        works: Array.isArray(p.works) ? p.works : [],
-      } : null))
+      .then((p) => {
+        const np = p && p.id ? {
+          ...p,
+          stats: Array.isArray(p.stats) ? p.stats : [],
+          works: Array.isArray(p.works) ? p.works : [],
+        } : null;
+        setProject(np);
+        if (np) onProjectLoaded?.(np);   // let the parent know which template this activity belongs to
+      })
       .catch(() => setProject(null));
   const loadWorks = () =>
     api.works({ projectId, type, q, sort, ...(featuredOnly ? { featured: 1 } : {}) })
