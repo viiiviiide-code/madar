@@ -125,6 +125,17 @@ CREATE TABLE IF NOT EXISTS tv_broadcasts (
   FOREIGN KEY (work_id) REFERENCES works(id) ON DELETE CASCADE,
   FOREIGN KEY (platform_id) REFERENCES platforms(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS user_permissions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  template_id INTEGER,   -- set (with project_id NULL) => full access to this whole template
+  project_id INTEGER,    -- set => access to just this one activity (any template, or none)
+  created_at TEXT,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE,
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
 `);
 
 /* ---------- migrations (for DBs created before these columns) ---------- */

@@ -8,6 +8,7 @@ import {
   MONTHS, toFa, faToEn, jMonthStartISO, jMonthEndISO, formatJalaliMonth, formatJalali, jalaliToISO,
 } from "../jalali";
 import JalaliInput from "./JalaliInput.jsx";
+import UserManagement from "./UserManagement.jsx";
 
 export const TEMPLATE_FONTS = [
   { key: "Vazirmatn", label: "وزیرمتن" },
@@ -296,6 +297,10 @@ export default function Home({
           updateSetting={updateSetting}
           onClose={() => setHomeTool(null)}
         />
+      )}
+
+      {admin && homeTool === "users" && (
+        <UserManagement templates={templates} onClose={() => setHomeTool(null)} />
       )}
 
       {/* node editor */}

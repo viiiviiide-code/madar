@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   Settings, Menu, X, Sun, Moon, Circle, CalendarRange, Layers,
-  Plus, SlidersHorizontal, FolderPlus, ChevronLeft, ChevronDown, LogOut, Star, Trash2,
+  Plus, SlidersHorizontal, FolderPlus, ChevronLeft, ChevronDown, LogOut, Star, Trash2, Users,
 } from "lucide-react";
 import { api, auth, setUnauthorizedHandler } from "./api";
 import { formatJalaliMonth, isoToJalali } from "./jalali";
@@ -321,6 +321,11 @@ export default function App() {
               {admin && (
                 <button className="sb-item" onClick={() => openTool("settings")}>
                   <SlidersHorizontal size={16} className="sb-ic" /><span className="sb-title">تنظیمات نمایش</span>
+                </button>
+              )}
+              {admin && (
+                <button className="sb-item" onClick={() => openTool("users")}>
+                  <Users size={16} className="sb-ic" /><span className="sb-title">مدیریت کاربران و دسترسی‌ها</span>
                 </button>
               )}
             </div>

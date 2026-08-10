@@ -55,6 +55,73 @@ app.put("/api/account/password", (req, res) => {
   res.json({ ok: true });
 });
 
+/* ---------- user management (admin only) ---------- */
+app.get("/api/users", requireAdmin, (req, res) => {
+  res.json(db.prepare("SELECT id,username,role,created_at FROM users ORDER BY id").all());
+});
+app.post("/api/users", requireAdmin, (req, res) => {
+  const { username, password, role } = req.body || {};
+  if (!username || !password) return res.status(400).json({ error: "نام کاربری و رمز لازم است" });
+  if (String(password).length < 6) return res.status(400).json({ error: "رمز باید حداقل ۶ کاراکتر باشد" });
+  if (db.prepare("SELECT id FROM users WHERE username=?").get(username)) {
+    return res.status(400).json({ error: "این نام کاربری قبلاً استفاده شده" });
+  }
+  const finalRole = role === "admin" ? "admin" : "viewer";
+  const r = db.prepare("INSERT INTO users (username,password_hash,role,created_at) VALUES (?,?,?,?)")
+    .run(username, db.hashPassword(password), finalRole, new Date().toISOString());
+  res.json({ id: r.lastInsertRowid, username, role: finalRole });
+});
+app.put("/api/users/:id", requireAdmin, (req, res) => {
+  const u = db.prepare("SELECT * FROM users WHERE id=?").get(req.params.id);
+  if (!u) return res.status(404).json({ error: "not found" });
+  const { password, role } = req.body || {};
+  if (password) {
+    if (String(password).length < 6) return res.status(400).json({ error: "رمز باید حداقل ۶ کاراکتر باشد" });
+    db.prepare("UPDATE users SET password_hash=? WHERE id=?").run(db.hashPassword(password), u.id);
+  }
+  if (role === "admin" || role === "viewer") {
+    db.prepare("UPDATE users SET role=? WHERE id=?").run(role, u.id);
+  }
+  res.json({ ok: true });
+});
+app.delete("/api/users/:id", requireAdmin, (req, res) => {
+  if (Number(req.params.id) === req.user.id) {
+    return res.status(400).json({ error: "نمی‌توانی حساب خودت را حذف کنی" });
+  }
+  const target = db.prepare("SELECT role FROM users WHERE id=?").get(req.params.id);
+  const adminCount = db.prepare("SELECT COUNT(*) c FROM users WHERE role='admin'").get().c;
+  if (target?.role === "admin" && adminCount <= 1) {
+    return res.status(400).json({ error: "باید حداقل یک حساب مدیریت باقی بماند" });
+  }
+  db.prepare("DELETE FROM users WHERE id=?").run(req.params.id);
+  res.json({ ok: true });
+});
+
+/* per-user access grants: a whole template, or a single activity */
+app.get("/api/users/:id/permissions", requireAdmin, (req, res) => {
+  const rows = db.prepare(
+    `SELECT up.id, up.template_id, up.project_id,
+            t.label AS template_label,
+            pr.title AS project_title, pr.template_id AS project_template_id
+     FROM user_permissions up
+     LEFT JOIN templates t ON t.id=up.template_id
+     LEFT JOIN projects pr ON pr.id=up.project_id
+     WHERE up.user_id=? ORDER BY up.id`
+  ).all(req.params.id);
+  res.json(rows);
+});
+app.post("/api/users/:id/permissions", requireAdmin, (req, res) => {
+  const { template_id, project_id } = req.body || {};
+  if (!template_id && !project_id) return res.status(400).json({ error: "تمپلیت یا فعالیت را انتخاب کن" });
+  const r = db.prepare("INSERT INTO user_permissions (user_id,template_id,project_id,created_at) VALUES (?,?,?,?)")
+    .run(req.params.id, project_id ? null : (template_id || null), project_id || null, new Date().toISOString());
+  res.json({ id: r.lastInsertRowid });
+});
+app.delete("/api/users/:id/permissions/:permId", requireAdmin, (req, res) => {
+  db.prepare("DELETE FROM user_permissions WHERE id=? AND user_id=?").run(req.params.permId, req.params.id);
+  res.json({ ok: true });
+});
+
 const UP = path.join(__dirname, "..", "uploads");
 if (!fs.existsSync(UP)) fs.mkdirSync(UP, { recursive: true });
 app.use("/uploads", express.static(UP, {
@@ -77,6 +144,42 @@ app.post("/api/upload", requireAdmin, upload.single("file"), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "no file" });
   res.json({ url: "/uploads/" + req.file.filename });
 });
+
+/* ---------- per-user access scoping (template/activity level) ---------- */
+// A viewer with zero permission rows is unrestricted (keeps existing shared
+// "user" account working exactly as before). A viewer with any rows can only
+// see what those rows grant — either a whole template, or a single activity.
+function isRestricted(user) {
+  if (!user || user.role === "admin") return false;
+  const c = db.prepare("SELECT COUNT(*) c FROM user_permissions WHERE user_id=?").get(user.id).c;
+  return c > 0;
+}
+function permittedProjectIds(userId) {
+  const rows = db.prepare("SELECT template_id, project_id FROM user_permissions WHERE user_id=?").all(userId);
+  const ids = new Set(rows.filter((r) => r.project_id).map((r) => r.project_id));
+  const tplIds = rows.filter((r) => r.template_id && !r.project_id).map((r) => r.template_id);
+  if (tplIds.length) {
+    const ph = tplIds.map(() => "?").join(",");
+    db.prepare(`SELECT id FROM projects WHERE template_id IN (${ph})`).all(...tplIds)
+      .forEach((p) => ids.add(p.id));
+  }
+  return ids;
+}
+function permittedTemplateIds(userId) {
+  const rows = db.prepare("SELECT template_id, project_id FROM user_permissions WHERE user_id=?").all(userId);
+  const ids = new Set(rows.filter((r) => r.template_id && !r.project_id).map((r) => r.template_id));
+  const projIds = rows.filter((r) => r.project_id).map((r) => r.project_id);
+  if (projIds.length) {
+    const ph = projIds.map(() => "?").join(",");
+    db.prepare(`SELECT DISTINCT template_id FROM projects WHERE id IN (${ph}) AND template_id IS NOT NULL`)
+      .all(...projIds).forEach((r) => ids.add(r.template_id));
+  }
+  return ids;
+}
+function canSeeProject(req, projectId) {
+  if (!isRestricted(req.user)) return true;
+  return permittedProjectIds(req.user.id).has(Number(projectId));
+}
 
 /* ---------- helpers ---------- */
 const totalViews = (workId) =>
@@ -213,10 +316,21 @@ app.get("/api/field-values", (req, res) => {
 /* ---------- templates (cores) ---------- */
 app.get("/api/templates", (req, res) => {
   const rows = db.prepare("SELECT * FROM templates ORDER BY sort_order, id").all();
-  const out = rows.map((t) => ({
-    ...t,
-    count: db.prepare("SELECT COUNT(*) c FROM projects WHERE template_id=?").get(t.id).c,
-  }));
+  const restricted = isRestricted(req.user);
+  const allowedTpl = restricted ? permittedTemplateIds(req.user.id) : null;
+  const allowedProj = restricted ? permittedProjectIds(req.user.id) : null;
+  const out = rows
+    .filter((t) => !restricted || allowedTpl.has(t.id))
+    .map((t) => {
+      const fullAccess = !restricted || db.prepare(
+        "SELECT COUNT(*) c FROM user_permissions WHERE user_id=? AND template_id=? AND project_id IS NULL"
+      ).get(req.user.id, t.id).c > 0;
+      const count = fullAccess
+        ? db.prepare("SELECT COUNT(*) c FROM projects WHERE template_id=?").get(t.id).c
+        : db.prepare("SELECT id FROM projects WHERE template_id=?").all(t.id)
+            .filter((p) => allowedProj.has(p.id)).length;
+      return { ...t, count };
+    });
   res.json(out);
 });
 app.post("/api/templates", requireAdmin, (req, res) => {
@@ -254,6 +368,10 @@ app.get("/api/projects", (req, res) => {
   } else {
     rows = db.prepare("SELECT * FROM projects ORDER BY start_date").all();
   }
+  if (isRestricted(req.user)) {
+    const allowed = permittedProjectIds(req.user.id);
+    rows = rows.filter((p) => allowed.has(p.id));
+  }
   const out = rows.map((p) => ({
     ...p,
     worksCount: db.prepare("SELECT COUNT(*) c FROM works WHERE project_id=?").get(p.id).c,
@@ -262,11 +380,16 @@ app.get("/api/projects", (req, res) => {
 });
 
 app.get("/api/projects/all", (req, res) => {
-  const rows = db.prepare("SELECT id,title,sub,start_date,end_date,template_id FROM projects ORDER BY start_date").all();
+  let rows = db.prepare("SELECT id,title,sub,start_date,end_date,template_id FROM projects ORDER BY start_date").all();
+  if (isRestricted(req.user)) {
+    const allowed = permittedProjectIds(req.user.id);
+    rows = rows.filter((p) => allowed.has(p.id));
+  }
   res.json(rows);
 });
 
 app.get("/api/projects/:id", (req, res) => {
+  if (!canSeeProject(req, req.params.id)) return res.status(403).json({ error: "دسترسی به این فعالیت را نداری" });
   const p = db.prepare("SELECT * FROM projects WHERE id=?").get(req.params.id);
   if (!p) return res.status(404).json({ error: "not found" });
   res.json(hydrateProject(p));
@@ -374,6 +497,7 @@ app.get("/api/stat-labels", (req, res) => {
 /* ---------- works ---------- */
 app.get("/api/works", (req, res) => {
   const { projectId, type, q, keyword, from, to, sort, featured } = req.query;
+  if (projectId && !canSeeProject(req, projectId)) return res.status(403).json({ error: "دسترسی نداری" });
   // unified: q searches text fields AND keywords; legacy keyword param also supported
   const unifiedQ = q || keyword || "";
 
@@ -401,22 +525,35 @@ app.get("/api/works", (req, res) => {
   else sql += " ORDER BY datetime(w.created_at) DESC";
 
   let rows = db.prepare(sql).all(...args).map(hydrateWork);
+  if (!projectId && isRestricted(req.user)) {
+    const allowed = permittedProjectIds(req.user.id);
+    rows = rows.filter((w) => allowed.has(w.project_id));
+  }
   if (sort === "views") rows = rows.sort((a, b) => b.totalViews - a.totalViews);
   res.json(rows);
 });
 
 /* featured works belonging to a template (across all its projects) */
 app.get("/api/templates/:id/featured-works", (req, res) => {
+  if (isRestricted(req.user) && !permittedTemplateIds(req.user.id).has(Number(req.params.id))) {
+    return res.status(403).json({ error: "دسترسی نداری" });
+  }
   const rows = db.prepare(
     `SELECT w.* FROM works w JOIN projects p ON p.id=w.project_id
      WHERE p.template_id=? AND w.featured=1 ORDER BY datetime(w.created_at) DESC`
   ).all(req.params.id);
-  res.json(rows.map(hydrateWork));
+  let out = rows.map(hydrateWork);
+  if (isRestricted(req.user)) {
+    const allowed = permittedProjectIds(req.user.id);
+    out = out.filter((w) => allowed.has(w.project_id));
+  }
+  res.json(out);
 });
 
 app.get("/api/works/:id", (req, res) => {
   const w = db.prepare("SELECT * FROM works WHERE id=?").get(req.params.id);
   if (!w) return res.status(404).json({ error: "not found" });
+  if (!canSeeProject(req, w.project_id)) return res.status(403).json({ error: "دسترسی نداری" });
   res.json(hydrateWork(w));
 });
 
@@ -532,6 +669,7 @@ app.get("/api/works/:id/similar", (req, res) => {
   if (!kws.length) return res.json([]);
   const srcWork = db.prepare("SELECT project_id FROM works WHERE id=?").get(req.params.id);
   if (!srcWork) return res.json([]);
+  if (!canSeeProject(req, srcWork.project_id)) return res.status(403).json({ error: "دسترسی نداری" });
   const srcProject = db.prepare("SELECT template_id FROM projects WHERE id=?").get(srcWork.project_id);
   const templateId = srcProject?.template_id ?? null;
   const ph = kws.map(() => "?").join(",");
@@ -552,7 +690,12 @@ app.get("/api/works/:id/similar", (req, res) => {
     args = [...kws, req.params.id, srcWork.project_id];
   }
   const rows = db.prepare(sql).all(...args);
-  res.json(rows.map(hydrateWork));
+  let out = rows.map(hydrateWork);
+  if (isRestricted(req.user)) {
+    const allowed = permittedProjectIds(req.user.id);
+    out = out.filter((w) => allowed.has(w.project_id));
+  }
+  res.json(out);
 });
 
 const PORT = process.env.PORT || 4000;
