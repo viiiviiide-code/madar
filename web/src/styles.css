@@ -935,6 +935,30 @@ textarea.ed{min-height:70px;resize:vertical}
 }
 .tp-subhead.collapsible:hover{color:var(--gold)}
 
+/* user management panel */
+.um-panel{max-width:760px}
+.um-new{background:var(--bg2);border:1px dashed var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:9px}
+.um-role-pick{display:flex;align-items:center;gap:5px;font-size:13px;color:var(--muted);cursor:pointer}
+.um-role-pick input{accent-color:var(--gold)}
+.um-list{display:flex;flex-direction:column;gap:8px}
+.um-user-card{background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.um-user-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.um-username{font-size:14px;font-weight:700;color:var(--ink)}
+.um-role-badge{font-size:11px;padding:2px 8px;background:var(--panel2);border-radius:6px}
+.um-scope-badge{font-size:11px;padding:2px 8px;border-radius:6px;font-weight:600}
+.um-scope-badge.full{color:var(--muted);background:var(--panel2)}
+.um-scope-badge.restricted{color:var(--gold);background:var(--gold-soft)}
+.um-user-row .mini{margin-inline-start:auto}
+.um-user-row .mini.danger{margin-inline-start:0}
+.um-perms{display:flex;flex-direction:column;gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+.um-perm-row{
+  display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);
+  border-radius:9px;padding:6px 10px;font-size:12.5px;
+}
+.um-perm-row span{flex:1}
+.um-grant-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.um-grant-row select{flex:1;min-width:160px}
+
 /* generic centered modal (activity edit, change-password, etc.) */
 .modal-overlay{
   position:fixed;inset:0;background:rgba(8,10,16,.65);backdrop-filter:blur(3px);
