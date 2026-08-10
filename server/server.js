@@ -57,7 +57,15 @@ app.put("/api/account/password", (req, res) => {
 
 /* ---------- user management (admin only) ---------- */
 app.get("/api/users", requireAdmin, (req, res) => {
-  res.json(db.prepare("SELECT id,username,role,created_at FROM users ORDER BY id").all());
+  const users = db.prepare("SELECT id,username,role,created_at FROM users ORDER BY id").all();
+  const perms = db.prepare(
+    `SELECT up.id, up.user_id, up.template_id, up.project_id,
+            t.label AS template_label, pr.title AS project_title
+     FROM user_permissions up
+     LEFT JOIN templates t ON t.id=up.template_id
+     LEFT JOIN projects pr ON pr.id=up.project_id`
+  ).all();
+  res.json(users.map((u) => ({ ...u, permissions: perms.filter((x) => x.user_id === u.id) })));
 });
 app.post("/api/users", requireAdmin, (req, res) => {
   const { username, password, role } = req.body || {};
