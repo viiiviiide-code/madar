@@ -59,6 +59,15 @@ export const api = {
   changePassword: (currentPassword, newPassword) =>
     send("PUT")("/api/account/password", { currentPassword, newPassword }),
 
+  users: () => get("/api/users"),
+  addUser: (username, password, role) => send("POST")("/api/users", { username, password, role }),
+  updateUser: (id, patch) => send("PUT")("/api/users/" + id, patch),
+  delUser: (id) => del("/api/users/" + id),
+  userPermissions: (userId) => get(`/api/users/${userId}/permissions`),
+  grantPermission: (userId, { template_id, project_id }) =>
+    send("POST")(`/api/users/${userId}/permissions`, { template_id, project_id }),
+  revokePermission: (userId, permId) => del(`/api/users/${userId}/permissions/${permId}`),
+
   settings: () => get("/api/settings"),
   saveSettings: (obj) => send("PUT")("/api/settings", obj),
 
