@@ -365,6 +365,18 @@ export default function App() {
             goHome={() => go(viewForMode(mode))}
             openWork={(workId) => go({ name: "work", id: view.id, workId })}
             onProjectChanged={() => { loadProjects(); loadTemplates(); }}
+            onProjectLoaded={(p) => {
+              // keep "mode" (which template we're conceptually inside) in sync with
+              // whatever activity is actually being viewed — landing directly on a
+              // project link/refresh never carries this info in the URL otherwise,
+              // which is what made "back" drop people on a blank/template-less page.
+              if (p.template_id) {
+                const t = templates.find((x) => String(x.id) === String(p.template_id));
+                setMode({ type: "template", id: p.template_id, label: t?.label || "" });
+              } else {
+                setMode({ type: "date" });
+              }
+            }}
           />
         )}
 
