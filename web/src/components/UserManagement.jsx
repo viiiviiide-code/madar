@@ -8,7 +8,9 @@ export default function UserManagement({ templates, onClose }) {
   const [newUser, setNewUser] = useState({ username: "", password: "", role: "viewer" });
   const [error, setError] = useState("");
   const [expandedId, setExpandedId] = useState(null);
-  const [grantTplId, setGrantTplId] = useState({});   // { [userId]: templateId | "" }
+  const [grantTplId, setGrantTplId] = useState({});   // { [userId]: templateId | "" } — for "whole template" mode
+  const [grantMode, setGrantMode] = useState({});      // { [userId]: "template" | "activity" }
+  const [grantTplForActivity, setGrantTplForActivity] = useState({}); // { [userId]: templateId | "" } — filter for activity picker
   const [grantProjId, setGrantProjId] = useState({}); // { [userId]: projectId | "" }
 
   const reload = () => api.users().then((u) => setUsers(Array.isArray(u) ? u : [])).catch(() => setUsers([]));
@@ -51,6 +53,7 @@ export default function UserManagement({ templates, onClose }) {
     if (!projId) return;
     await api.grantPermission(userId, { project_id: projId });
     setGrantProjId((s) => ({ ...s, [userId]: "" }));
+    setGrantTplForActivity((s) => ({ ...s, [userId]: "" }));
     await reload();
   };
   const revoke = async (userId, permId) => {
@@ -141,38 +144,50 @@ export default function UserManagement({ templates, onClose }) {
                     </div>
                   ))}
 
-                  <div className="um-grant-row">
-                    <select className="full-select" value={grantTplId[u.id] || ""}
-                      onChange={(e) => setGrantTplId((s) => ({ ...s, [u.id]: e.target.value }))}>
-                      <option value="">— انتخاب تمپلیت —</option>
-                      {templates.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-                    </select>
-                    <button className="btn light sm" disabled={!grantTplId[u.id]} onClick={() => grantTemplate(u.id)}>
-                      <Plus size={13} /> دسترسی کامل به این تمپلیت
-                    </button>
-                  </div>
-
-                  {grantTplId[u.id] && activitiesForTpl(grantTplId[u.id]).length > 0 && (
-                    <div className="um-grant-row">
-                      <select className="full-select" value={grantProjId[u.id] || ""}
-                        onChange={(e) => setGrantProjId((s) => ({ ...s, [u.id]: e.target.value }))}>
-                        <option value="">— یا فقط یک فعالیت خاص —</option>
-                        {activitiesForTpl(grantTplId[u.id]).map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
-                      </select>
-                      <button className="btn light sm" disabled={!grantProjId[u.id]} onClick={() => grantActivity(u.id)}>
-                        <Plus size={13} /> فقط همین فعالیت
-                      </button>
+                  <div className="um-grant-box">
+                    <div className="um-grant-mode">
+                      <label className={grantMode[u.id] !== "activity" ? "on" : ""}>
+                        <input type="radio" name={`gm-${u.id}`} checked={grantMode[u.id] !== "activity"}
+                          onChange={() => setGrantMode((s) => ({ ...s, [u.id]: "template" }))} />
+                        دسترسی کامل به یک تمپلیت
+                      </label>
+                      <label className={grantMode[u.id] === "activity" ? "on" : ""}>
+                        <input type="radio" name={`gm-${u.id}`} checked={grantMode[u.id] === "activity"}
+                          onChange={() => setGrantMode((s) => ({ ...s, [u.id]: "activity" }))} />
+                        فقط یک فعالیت خاص
+                      </label>
                     </div>
-                  )}
 
-                  <div className="um-grant-row">
-                    <select className="full-select" value={grantProjId[u.id] && !grantTplId[u.id] ? grantProjId[u.id] : ""}
-                      onChange={(e) => { setGrantTplId((s) => ({ ...s, [u.id]: "" })); setGrantProjId((s) => ({ ...s, [u.id]: e.target.value })); }}>
-                      <option value="">— یا یک فعالیت بدون تمپلیت —</option>
-                      {projects.filter((p) => !p.template_id).map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
-                    </select>
-                    <button className="btn light sm" disabled={!grantProjId[u.id] || grantTplId[u.id]} onClick={() => grantActivity(u.id)}>
-                      <Plus size={13} /> افزودن
+                    {grantMode[u.id] !== "activity" ? (
+                      <select className="full-select" value={grantTplId[u.id] || ""}
+                        onChange={(e) => setGrantTplId((s) => ({ ...s, [u.id]: e.target.value }))}>
+                        <option value="">— یک تمپلیت انتخاب کن —</option>
+                        {templates.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+                      </select>
+                    ) : (
+                      <>
+                        <select className="full-select" value={grantTplForActivity[u.id] ?? ""}
+                          onChange={(e) => { setGrantTplForActivity((s) => ({ ...s, [u.id]: e.target.value })); setGrantProjId((s) => ({ ...s, [u.id]: "" })); }}>
+                          <option value="">— بدون تمپلیت —</option>
+                          {templates.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+                        </select>
+                        <select className="full-select" value={grantProjId[u.id] || ""}
+                          onChange={(e) => setGrantProjId((s) => ({ ...s, [u.id]: e.target.value }))}>
+                          <option value="">— یک فعالیت انتخاب کن —</option>
+                          {(grantTplForActivity[u.id]
+                            ? activitiesForTpl(grantTplForActivity[u.id])
+                            : projects.filter((p) => !p.template_id)
+                          ).map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
+                        </select>
+                      </>
+                    )}
+
+                    <button
+                      className="btn gold sm um-grant-confirm"
+                      disabled={grantMode[u.id] === "activity" ? !grantProjId[u.id] : !grantTplId[u.id]}
+                      onClick={() => (grantMode[u.id] === "activity" ? grantActivity(u.id) : grantTemplate(u.id))}
+                    >
+                      <Plus size={14} /> افزودن این دسترسی
                     </button>
                   </div>
                 </div>
