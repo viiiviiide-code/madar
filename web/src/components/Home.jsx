@@ -36,6 +36,7 @@ export default function Home({
   };
 
   const isTemplate = mode?.type === "template";
+  const isNone = mode?.type === "none";
   const activeTemplate = isTemplate ? templates.find((t) => t.id === mode.id) : null;
   const [tplEditTarget, setTplEditTarget] = useState(null);
 
@@ -224,7 +225,7 @@ export default function Home({
       </div>
 
       {/* date-range control — OUTSIDE the circle, only in date mode */}
-      {!isTemplate && (
+      {!isTemplate && !isNone && (
         <div className="daterange-bar">
           <span className="drb-label">بازهٔ زمانی</span>
           <div className="drb-group">
@@ -338,7 +339,9 @@ export default function Home({
         />
       )}
 
-      {/* orbit map (or freeform card board when theme === "card") */}
+      {/* orbit map (or freeform card board when theme === "card") — hidden on the
+          blank default landing page (nothing picked from the sidebar yet) */}
+      {!isNone && (
       <div className="orbit-wrap">
         <div className={`orbit-square theme-${theme}`} ref={squareRef}>
           {theme !== "card" && (
@@ -410,6 +413,13 @@ export default function Home({
           ))}
         </div>
       </div>
+      )}
+
+      {isNone && (
+        <div className="home-blank">
+          <span className="muted-sm">از سایدبار یک تمپلیت یا حالت تاریخ را انتخاب کن.</span>
+        </div>
+      )}
     </main>
   );
 }
@@ -522,6 +532,7 @@ function TemplatePanel({ templates, reload, onClose, flash, onEnterTemplate, ini
     await api.updateTemplate(editId, edit);
     setEditId(null); setEdit(null);
     await reload(); flash("ذخیره شد ✓");
+    onClose();
   };
   const del = async (id) => { if (confirm("حذف این تمپلیت؟ فعالیت‌هایش حذف نمی‌شوند.")) { await api.delTemplate(id); await reload(); } };
   const closeAndDiscard = () => { clearDraft(TPL_DRAFT_KEY); onClose(); };
@@ -551,7 +562,7 @@ function TemplatePanel({ templates, reload, onClose, flash, onEnterTemplate, ini
                 <div className="dp-row">
                   <label className="dp-lbl">فونت</label>
                   <select className="full-select" style={{ fontFamily: edit.font }} value={edit.font} onChange={(e) => setEdit({ ...edit, font: e.target.value })}>
-                    {TEMPLATE_FONTS.map((f) => <option key={f.key} value={f.key} style={{ fontFamily: f.key }}>{f.label}</option>)}
+                    {TEMPLATE_FONTS.map((f) => <option key={f.key} value={f.key} style={{ fontFamily: f.key }}>{f.label} — نمونه متن فارسی</option>)}
                   </select>
                 </div>
                 <div className="dp-actions">
@@ -602,7 +613,7 @@ function TemplatePanel({ templates, reload, onClose, flash, onEnterTemplate, ini
             <div className="dp-row">
               <label className="dp-lbl">فونت</label>
               <select className="full-select" style={{ fontFamily: draft.font }} value={draft.font} onChange={(e) => setDraft({ ...draft, font: e.target.value })}>
-                {TEMPLATE_FONTS.map((f) => <option key={f.key} value={f.key} style={{ fontFamily: f.key }}>{f.label}</option>)}
+                {TEMPLATE_FONTS.map((f) => <option key={f.key} value={f.key} style={{ fontFamily: f.key }}>{f.label} — نمونه متن فارسی</option>)}
               </select>
             </div>
             <div className="dp-actions">

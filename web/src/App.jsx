@@ -32,7 +32,8 @@ function viewFromLocation() {
   if (qs.get("m") === "template" && qs.get("mid")) {
     return { name: "home", modeType: "template", modeId: qs.get("mid"), modeLabel: qs.get("mlabel") || "" };
   }
-  return { name: "home", modeType: "date" };
+  if (qs.get("m") === "date") return { name: "home", modeType: "date" };
+  return { name: "home", modeType: "none" };
 }
 function locationFromView(v) {
   const qs = new URLSearchParams();
@@ -50,14 +51,18 @@ function locationFromView(v) {
   return "?" + qs.toString();
 }
 function modeFromView(v) {
-  return v?.name === "home" && v.modeType === "template" && v.modeId
-    ? { type: "template", id: v.modeId, label: v.modeLabel || "" }
-    : { type: "date" };
+  if (v?.name === "home" && v.modeType === "template" && v.modeId) {
+    return { type: "template", id: v.modeId, label: v.modeLabel || "" };
+  }
+  if (v?.name === "home" && v.modeType === "date") return { type: "date" };
+  return { type: "none" };   // true default: a blank landing page, nothing picked yet
 }
 function viewForMode(m) {
-  return m?.type === "template" && m.id
-    ? { name: "home", modeType: "template", modeId: m.id, modeLabel: m.label || "" }
-    : { name: "home", modeType: "date" };
+  if (m?.type === "template" && m.id) {
+    return { name: "home", modeType: "template", modeId: m.id, modeLabel: m.label || "" };
+  }
+  if (m?.type === "date") return { name: "home", modeType: "date" };
+  return { name: "home", modeType: "none" };
 }
 
 export default function App() {
@@ -199,15 +204,6 @@ export default function App() {
         </div>
 
         <div className="sidebar-scroll">
-          {/* view modes */}
-          <div className="sb-section">
-            <div className="sb-section-t">نمایش</div>
-            <button className={`sb-item ${mode.type === "date" ? "active" : ""}`} onClick={pickDateMode}>
-              <CalendarRange size={16} className="sb-ic" />
-              <span className="sb-title">حالت تاریخ (بازهٔ زمانی)</span>
-            </button>
-          </div>
-
           {/* templates / labels — each template's own activities nest right under it */}
           <div className="sb-section">
             <div className="sb-section-t">تمپلیت‌ها (هسته‌ها)</div>
@@ -307,6 +303,15 @@ export default function App() {
                 )}
               </>
             )}
+          </div>
+
+          {/* view modes */}
+          <div className="sb-section">
+            <div className="sb-section-t">نمایش</div>
+            <button className={`sb-item ${mode.type === "date" ? "active" : ""}`} onClick={pickDateMode}>
+              <CalendarRange size={16} className="sb-ic" />
+              <span className="sb-title">حالت تاریخ (بازهٔ زمانی)</span>
+            </button>
           </div>
 
           {/* admin — فقط برای کاربری که با حساب مدیریت وارد شده نمایش داده می‌شود */}

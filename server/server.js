@@ -518,7 +518,9 @@ app.get("/api/works", (req, res) => {
   }
   const where = [];
   if (projectId) { where.push("w.project_id=?"); args.push(projectId); }
-  if (type && type !== "all") { where.push("w.type=?"); args.push(type); }
+  // a work's "type" may hold several comma-separated keys (multi-type works), so
+  // matching one type means "contains this key", not "equals exactly"
+  if (type && type !== "all") { where.push("(',' || w.type || ',') LIKE ?"); args.push(`%,${type},%`); }
   if (featured) { where.push("w.featured=1"); }
   if (from) { where.push("w.event_date>=?"); args.push(from); }
   if (to)   { where.push("w.event_date<=?"); args.push(to); }
@@ -638,14 +640,27 @@ app.delete("/api/works/:id", requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-/* copy a single work (with its keywords/media/platform-views) into another activity,
-   which may belong to a different template — or no template at all. */
+/* copy (or move) a single work into another activity, which may belong to a
+   different template — or no template at all. */
 app.post("/api/works/:id/duplicate", requireAdmin, (req, res) => {
   const src = db.prepare("SELECT * FROM works WHERE id=?").get(req.params.id);
   if (!src) return res.status(404).json({ error: "not found" });
   const targetProjectId = req.body.project_id;
+  const move = !!req.body.move;
   const targetProject = db.prepare("SELECT id FROM projects WHERE id=?").get(targetProjectId);
   if (!targetProject) return res.status(400).json({ error: "فعالیت مقصد پیدا نشد" });
+
+  // block re-copying the same work into an activity it's already in (by title) —
+  // unless it was since removed from there. Doesn't apply when moving OUT of that
+  // same activity (there's nothing to collide with) or moving the work onto itself.
+  if (String(targetProjectId) !== String(src.project_id) || !move) {
+    const dupe = db.prepare(
+      "SELECT id FROM works WHERE project_id=? AND title=? AND id<>?"
+    ).get(targetProjectId, src.title, src.id);
+    if (dupe) {
+      return res.status(409).json({ error: `اثر «${src.title}» قبلاً در این فعالیت وجود دارد (تکراری). اگر می‌خوای دوباره اضافه‌ش کنی، اول نسخهٔ قبلی را از آن فعالیت حذف کن.` });
+    }
+  }
 
   const newId = db.transaction(() => {
     const now = new Date().toISOString();
@@ -664,10 +679,11 @@ app.post("/api/works/:id/duplicate", requireAdmin, (req, res) => {
     const insTv = db.prepare("INSERT INTO tv_broadcasts (work_id,platform_id,date,time) VALUES (?,?,?,?)");
     db.prepare("SELECT platform_id,date,time FROM tv_broadcasts WHERE work_id=?").all(src.id)
       .forEach((t) => insTv.run(wid, t.platform_id, t.date, t.time));
+    if (move) db.prepare("DELETE FROM works WHERE id=?").run(src.id);
     return wid;
   })();
 
-  res.json(hydrateWork(db.prepare("SELECT * FROM works WHERE id=?").get(newId)));
+  res.json({ ...hydrateWork(db.prepare("SELECT * FROM works WHERE id=?").get(newId)), moved: move });
 });
 
 /* similar works: shares >=1 keyword (OR), ranked by shared count —
