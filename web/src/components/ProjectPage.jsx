@@ -53,7 +53,10 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
   const [isFs, setIsFs] = useState(false);
   const [muted, setMuted] = useState(true);
 
-  const typeLabel = (k) => types.find((t) => t.key === k)?.label || k;
+  const typeLabel = (k) =>
+    String(k || "").split(",").filter(Boolean)
+      .map((x) => types.find((t) => t.key === x)?.label || x)
+      .join("، ") || "—";
 
   const loadProject = () =>
     api.project(projectId)
@@ -419,7 +422,7 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
                     <span className="chip">{typeLabel(w.type)}</span>
                     <span className="views"><Eye size={13} /> {fmtNum(w.totalViews)}</span>
                   </div>
-                  <h3>{w.featured && <Star size={13} className="title-star" fill="currentColor" />} {w.title}</h3>
+                  <h3>{!!w.featured && <Star size={13} className="title-star" fill="currentColor" />} {w.title}</h3>
                   <p className="muted-sm">{w.axis}{w.axis && w.campaign ? " · " : ""}{w.campaign}</p>
                 </div>
               </div>
@@ -434,7 +437,7 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
                 <div className="wr-body">
                   <div className="wr-line1">
                     <span className="chip">{typeLabel(w.type)}</span>
-                    <h3>{w.featured && <Star size={13} className="title-star" fill="currentColor" />} {w.title}</h3>
+                    <h3>{!!w.featured && <Star size={13} className="title-star" fill="currentColor" />} {w.title}</h3>
                     {admin && (
                       <div className="row-admin-tools">
                         <button className={`card-star ${w.featured ? "on" : ""}`} title={w.featured ? "حذف از آثار شاخص" : "اثر شاخص"}
@@ -774,35 +777,55 @@ function AddWork({ projectId, types, reloadMeta, onAdded, copyFrom, onClose }) {
       {tab === "manual" && (
         <>
           <div className="af-row">
-            <div className="type-pick">
-              <select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>
-                {types.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-              </select>
-              <button className="mini" onClick={() => setAddType((v) => !v)} title="افزودن نوع جدید">
+            <div className="type-multi">
+              {types.map((t) => {
+                const selectedTypes = (f.type || "").split(",").filter(Boolean);
+                const on = selectedTypes.includes(t.key);
+                return (
+                  <button key={t.key} type="button" className={`type-chip ${on ? "on" : ""}`}
+                    onClick={() => {
+                      const set = new Set(selectedTypes);
+                      if (set.has(t.key)) set.delete(t.key); else set.add(t.key);
+                      setF({ ...f, type: Array.from(set).join(",") });
+                    }}>
+                    {t.label}
+                  </button>
+                );
+              })}
+              <button className="mini" onClick={() => setAddType((v) => !v)} title="افزودن/حذف نوع">
                 <Plus size={14} />
-              </button>
-              <button className="mini danger" title="حذف این نوع"
-                onClick={async () => {
-                  const cur = types.find((t) => t.key === f.type);
-                  if (!cur) return;
-                  if (confirm(`نوع «${cur.label}» حذف شود؟ (آثار ثبت‌شده با این نوع حذف نمی‌شوند)`)) {
-                    await api.delType(cur.id);
-                    await reloadMeta();
-                  }
-                }}>
-                <Trash2 size={14} />
               </button>
             </div>
             <input placeholder="عنوان اثر" value={f.title}
               onChange={(e) => setF({ ...f, title: e.target.value })} />
           </div>
+          <span className="muted-sm type-multi-hint">می‌تونی چند نوع هم‌زمان انتخاب کنی (مثلاً هم ویدئو هم پوستر).</span>
           {addType && (
-            <div className="af-row newtype">
-              <input placeholder="شناسه لاتین (مثل infographic)" value={newType.key}
-                onChange={(e) => setNewType({ ...newType, key: e.target.value })} />
-              <input placeholder="عنوان فارسی (مثل اینفوگرافیک)" value={newType.label}
-                onChange={(e) => setNewType({ ...newType, label: e.target.value })} />
-              <button className="btn gold sm" onClick={createType}>ثبت نوع</button>
+            <div className="af-row newtype-manage">
+              <div className="newtype-list">
+                {types.map((t) => (
+                  <span key={t.key} className="newtype-row">
+                    {t.label}
+                    <button className="mini danger" title="حذف این نوع"
+                      onClick={async () => {
+                        if (confirm(`نوع «${t.label}» حذف شود؟ (آثار ثبت‌شده با این نوع دست‌نخورده می‌مانند)`)) {
+                          await api.delType(t.id);
+                          setF((prev) => ({ ...prev, type: (prev.type || "").split(",").filter((k) => k !== t.key).join(",") }));
+                          await reloadMeta();
+                        }
+                      }}>
+                      <Trash2 size={11} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="af-row">
+                <input placeholder="شناسه لاتین (مثل infographic)" value={newType.key}
+                  onChange={(e) => setNewType({ ...newType, key: e.target.value })} />
+                <input placeholder="عنوان فارسی (مثل اینفوگرافیک)" value={newType.label}
+                  onChange={(e) => setNewType({ ...newType, label: e.target.value })} />
+                <button className="btn gold sm" onClick={createType}>ثبت نوع</button>
+              </div>
             </div>
           )}
           <div className="af-row">
@@ -879,6 +902,7 @@ function AddWork({ projectId, types, reloadMeta, onAdded, copyFrom, onClose }) {
           </div>
 
           <div className="af-row">
+            <button className="btn ghost sm" onClick={() => { clearWorkDraft(DRAFT_KEY); onClose?.(); }}>انصراف</button>
             <button className="btn gold sm" disabled={!f.title} onClick={submit}>ثبت اثر</button>
           </div>
         </>

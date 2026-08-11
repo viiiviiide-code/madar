@@ -385,7 +385,7 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
         {/* info aside */}
         <aside className="work-info">
           <div className="wi-top">
-            <span className="chip">{work.type}</span>
+            <span className="chip">{String(work.type || "").split(",").filter(Boolean).join("، ")}</span>
             {admin && (
               <button className={`card-star ${draft.featured ? "on" : ""}`}
                 title={draft.featured ? "حذف از آثار شاخص" : "علامت‌گذاری به‌عنوان اثر شاخص"}
@@ -755,7 +755,7 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
           work={work}
           currentProjectId={projectId}
           onClose={() => setCopyTarget(false)}
-          onDone={() => setCopyTarget(false)}
+          onDone={(result) => { setCopyTarget(false); if (result?.moved) goBack(); }}
         />
       )}
 

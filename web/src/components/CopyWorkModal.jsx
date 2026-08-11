@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from "react";
-import { X, Copy, Layers, Circle } from "lucide-react";
+import { X, Copy, Layers, Circle, ArrowLeftRight, Check } from "lucide-react";
 import { api } from "../api";
 
 // Two-step picker: choose a template (or "no template"), then choose one of its
-// activities, then copy the work into it. Self-contained — fetches its own data.
+// activities, then copy (or move) the work into it. Self-contained — fetches its own data.
 export default function CopyWorkModal({ work, currentProjectId, onClose, onDone }) {
   const [templates, setTemplates] = useState(null);
   const [projects, setProjects] = useState(null);
   const [tplId, setTplId] = useState(undefined); // undefined = not chosen yet, "" = "no template"
+  const [move, setMove] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [done, setDone] = useState(null); // { moved: bool } after success
 
   useEffect(() => {
     api.templates().then((t) => setTemplates(Array.isArray(t) ? t : [])).catch(() => setTemplates([]));
@@ -24,21 +26,46 @@ export default function CopyWorkModal({ work, currentProjectId, onClose, onDone 
   const copyInto = async (projectId) => {
     setBusy(true); setError("");
     try {
-      await api.duplicateWork(work.id, projectId);
-      onDone?.();
+      const res = await api.duplicateWork(work.id, projectId, move);
+      setDone({ moved: !!res.moved });
     } catch (e) {
-      setError(e.message || "کپی ناموفق بود.");
+      setError(e.message || "عملیات ناموفق بود.");
     } finally {
       setBusy(false);
     }
   };
 
+  if (done) {
+    return (
+      <div className="modal-overlay" onClick={() => onDone?.(done)}>
+        <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+          <div className="cw-done">
+            <Check size={28} className="cw-done-ic" />
+            <p>{done.moved ? "اثر با موفقیت منتقل شد." : "اثر با موفقیت کپی شد."}</p>
+            <button className="btn gold sm" onClick={() => onDone?.(done)}>باشه</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="tp-head">
-          <h3><Copy size={16} /> کپی «{work.title}» به فعالیت دیگر</h3>
+          <h3><Copy size={16} /> {move ? "انتقال" : "کپی"} «{work.title}» به فعالیت دیگر</h3>
           <button className="x-btn" onClick={onClose}><X size={18} /></button>
+        </div>
+
+        <div className="cw-mode-pick">
+          <label className={!move ? "on" : ""}>
+            <input type="radio" name="cwMode" checked={!move} onChange={() => setMove(false)} />
+            <Copy size={13} /> کپی (نسخهٔ اصلی دست‌نخورده می‌ماند)
+          </label>
+          <label className={move ? "on" : ""}>
+            <input type="radio" name="cwMode" checked={move} onChange={() => setMove(true)} />
+            <ArrowLeftRight size={13} /> انتقال (از اینجا حذف می‌شود)
+          </label>
         </div>
 
         {loading && <p className="muted-sm">در حال بارگذاری…</p>}
@@ -79,7 +106,7 @@ export default function CopyWorkModal({ work, currentProjectId, onClose, onDone 
         )}
 
         {error && <div className="login-error">{error}</div>}
-        {busy && <p className="muted-sm">در حال کپی…</p>}
+        {busy && <p className="muted-sm">در حال {move ? "انتقال" : "کپی"}…</p>}
       </div>
     </div>
   );
