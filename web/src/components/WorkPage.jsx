@@ -3,6 +3,7 @@ import { ChevronRight, ChevronLeft, Maximize2, Eye, Plus, X, Save, Check, Trash2
 import { api } from "../api";
 import { formatJalali, toFa, jalaliToISO } from "../jalali";
 import JalaliInput from "./JalaliInput.jsx";
+import TimeInput from "./TimeInput.jsx";
 import KeywordInput from "./KeywordInput.jsx";
 import CopyWorkModal from "./CopyWorkModal.jsx";
 import { Media, gradFor, VideoThumb, mediaKind, linkHost } from "./ProjectPage.jsx";
@@ -668,7 +669,7 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
                         {formOpen ? (
                           <div className="tv-add-form">
                             <JalaliInput value={tvFormDate || jalaliToISO(1404, 1, 1)} onChange={setTvFormDate} />
-                            <input type="time" className="tv-time-in" value={tvFormTime} onChange={(e) => setTvFormTime(e.target.value)} />
+                            <TimeInput value={tvFormTime} onChange={setTvFormTime} />
                             <button className="mini" disabled={!tvFormDate || !tvFormTime} onClick={() => addTvEntry(p.id)}><Plus size={13} /></button>
                             <button className="mini" onClick={() => { setTvFormOpenId(null); setTvFormDate(""); setTvFormTime(""); }}><X size={13} /></button>
                           </div>

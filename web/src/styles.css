@@ -587,10 +587,14 @@ textarea.ed{min-height:70px;resize:vertical}
 .tv-time-chip button{display:flex;color:var(--muted)}
 .tv-time-chip button:hover{color:var(--coral)}
 .tv-add-form{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;flex-basis:100%;width:100%}
-.tv-time-in{
+.time-in{display:flex;align-items:center;gap:6px}
+.time-in-ic{color:var(--gold);flex-shrink:0}
+.time-in select{
   background:var(--bg2);border:1px solid var(--line);border-radius:8px;
-  padding:7px 10px;color:var(--ink);outline:none;font-size:13px;direction:ltr;
+  padding:7px 9px;color:var(--ink);outline:none;font-size:13px;cursor:pointer;
 }
+.time-in select:focus{border-color:var(--gold)}
+.time-in-sep{color:var(--muted);font-weight:700}
 .tv-add-btn{margin-top:10px;flex-basis:100%;width:100%;justify-content:center}
 .tv-view-card{
   background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;
