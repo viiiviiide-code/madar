@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   Settings, Menu, X, Sun, Moon, Circle, CalendarRange, Layers,
-  Plus, SlidersHorizontal, FolderPlus, ChevronLeft, ChevronDown, LogOut, Star, Trash2, Users,
+  Plus, SlidersHorizontal, FolderPlus, ChevronLeft, ChevronDown, LogOut, Star, Trash2, Users, BarChart3,
 } from "lucide-react";
 import { api, auth, setUnauthorizedHandler } from "./api";
 import { formatJalaliMonth, isoToJalali } from "./jalali";
@@ -9,6 +9,7 @@ import Home from "./components/Home.jsx";
 import ProjectPage from "./components/ProjectPage.jsx";
 import WorkPage from "./components/WorkPage.jsx";
 import FeaturedWorks from "./components/FeaturedWorks.jsx";
+import TemplateReport from "./components/TemplateReport.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import Login from "./components/Login.jsx";
 
@@ -26,6 +27,9 @@ function viewFromLocation() {
   if (name === "featured" && qs.get("tid")) {
     return { name: "featured", tid: qs.get("tid"), label: qs.get("label") || "" };
   }
+  if (name === "report" && qs.get("tid")) {
+    return { name: "report", tid: qs.get("tid"), label: qs.get("label") || "" };
+  }
   // home (default) — also remembers which "mode" (date range vs a specific template)
   // was active, so a hard refresh or the browser's back button doesn't dump the
   // person onto a blank/template-less screen.
@@ -41,6 +45,7 @@ function locationFromView(v) {
   if (v.name === "project" && v.id) { qs.set("id", v.id); if (v.q) qs.set("q", v.q); }
   if (v.name === "work" && v.id && v.workId) { qs.set("id", v.id); qs.set("workId", v.workId); }
   if (v.name === "featured" && v.tid) { qs.set("tid", v.tid); if (v.label) qs.set("label", v.label); }
+  if (v.name === "report" && v.tid) { qs.set("tid", v.tid); if (v.label) qs.set("label", v.label); }
   if (v.name === "home") {
     if (v.modeType === "template" && v.modeId) {
       qs.set("m", "template"); qs.set("mid", v.modeId); if (v.modeLabel) qs.set("mlabel", v.modeLabel);
@@ -227,6 +232,10 @@ export default function App() {
                       onClick={(e) => { e.stopPropagation(); setSidebar(false); go({ name: "featured", tid: t.id, label: t.label }); }}>
                       <Star size={13} />
                     </span>
+                    <span className="sb-star" title="گزارش این تمپلیت"
+                      onClick={(e) => { e.stopPropagation(); setSidebar(false); go({ name: "report", tid: t.id, label: t.label }); }}>
+                      <BarChart3 size={13} />
+                    </span>
                     {admin && (
                       <button className="sb-del" title="حذف تمپلیت" onClick={(e) => delTemplateFromSidebar(t, e)}>
                         <Trash2 size={13} />
@@ -362,6 +371,7 @@ export default function App() {
             homeTool={homeTool} setHomeTool={setHomeTool}
             openProject={(id) => go({ name: "project", id })}
             openSidebar={() => setSidebar(true)}
+            openReport={(tid, label) => go({ name: "report", tid, label })}
             onProjectsChanged={() => { loadProjects(); loadTemplates(); }}
           />
         )}
@@ -405,6 +415,13 @@ export default function App() {
             templateId={view.tid} templateLabel={view.label}
             goBack={() => go(viewForMode({ type: "template", id: view.tid, label: view.label }))}
             openWork={(projectId, workId) => go({ name: "work", id: projectId, workId })}
+          />
+        )}
+
+        {view.name === "report" && (
+          <TemplateReport
+            templateId={view.tid} templateLabel={view.label}
+            goBack={() => go(viewForMode({ type: "template", id: view.tid, label: view.label }))}
           />
         )}
       </ErrorBoundary>

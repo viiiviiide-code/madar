@@ -89,6 +89,7 @@ export const api = {
   updateTemplate: (id, t) => send("PUT")("/api/templates/" + id, t),
   delTemplate: (id) => del("/api/templates/" + id),
   featuredWorks: (templateId) => get("/api/templates/" + templateId + "/featured-works"),
+  templateReport: (templateId) => get("/api/templates/" + templateId + "/report"),
 
   projects: (opts = {}) => {
     const qs = new URLSearchParams();

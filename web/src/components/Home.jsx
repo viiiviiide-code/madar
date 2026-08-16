@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Search, X, Plus, Minus, ArrowRight, ArrowLeft, Bold, LogIn, Trash2, Save, Type, Menu,
-  CalendarRange, Layers, Edit3, Copy, LayoutGrid, ChevronDown,
+  CalendarRange, Layers, Edit3, Copy, LayoutGrid, ChevronDown, BarChart3,
 } from "lucide-react";
 import { api } from "../api";
 import {
@@ -24,7 +24,7 @@ export const TEMPLATE_THEMES = [
 
 export default function Home({
   settings, updateSetting, admin, mode, setMode,
-  templates, reloadTemplates, homeTool, setHomeTool, openProject, openSidebar,
+  templates, reloadTemplates, homeTool, setHomeTool, openProject, openSidebar, openReport,
   onProjectsChanged,
 }) {
   const orbits = Math.max(1, +(settings.orbits || 3));
@@ -254,6 +254,9 @@ export default function Home({
       {isTemplate && (
         <div className="daterange-bar template-bar">
           <span className="drb-label tpl-title">{activeTemplate?.label || "تمپلیت"}</span>
+          <button className="btn light sm" onClick={() => openReport?.(activeTemplate?.id, activeTemplate?.label)}>
+            <BarChart3 size={14} /> گزارش
+          </button>
           {admin && (
             <>
               <button className="btn light sm" onClick={() => { setTplEditTarget(activeTemplate?.id || null); setHomeTool("template"); }}>

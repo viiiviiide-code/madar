@@ -560,6 +560,49 @@ app.get("/api/templates/:id/featured-works", (req, res) => {
   res.json(out);
 });
 
+/* full stats report for a template: per-activity and aggregate totals for
+   views/likes/comments and work-type counts, used by the report/dashboard page */
+app.get("/api/templates/:id/report", (req, res) => {
+  const templateId = Number(req.params.id);
+  const template = db.prepare("SELECT id,label FROM templates WHERE id=?").get(templateId);
+  if (!template) return res.status(404).json({ error: "not found" });
+  if (isRestricted(req.user) && !permittedTemplateIds(req.user.id).has(templateId)) {
+    return res.status(403).json({ error: "دسترسی نداری" });
+  }
+
+  let projects = db.prepare("SELECT id,title FROM projects WHERE template_id=? ORDER BY start_date").all(templateId);
+  if (isRestricted(req.user)) {
+    const allowed = permittedProjectIds(req.user.id);
+    projects = projects.filter((p) => allowed.has(p.id));
+  }
+
+  const allTypes = db.prepare("SELECT key,label FROM work_types ORDER BY id").all();
+
+  const activities = projects.map((p) => {
+    const works = db.prepare("SELECT id,type FROM works WHERE project_id=?").all(p.id);
+    let views = 0, likes = 0, comments = 0;
+    const typeCounts = {};
+    allTypes.forEach((t) => (typeCounts[t.key] = 0));
+    works.forEach((w) => {
+      views += totalViews(w.id);
+      likes += totalLikes(w.id);
+      comments += totalComments(w.id);
+      String(w.type || "").split(",").filter(Boolean).forEach((k) => {
+        typeCounts[k] = (typeCounts[k] || 0) + 1;
+      });
+    });
+    return { id: p.id, title: p.title, workCount: works.length, views, likes, comments, typeCounts };
+  });
+
+  const totals = activities.reduce((acc, a) => {
+    acc.views += a.views; acc.likes += a.likes; acc.comments += a.comments; acc.workCount += a.workCount;
+    Object.entries(a.typeCounts).forEach(([k, v]) => { acc.typeCounts[k] = (acc.typeCounts[k] || 0) + v; });
+    return acc;
+  }, { views: 0, likes: 0, comments: 0, workCount: 0, typeCounts: {} });
+
+  res.json({ template, types: allTypes, activities, totals });
+});
+
 app.get("/api/works/:id", (req, res) => {
   const w = db.prepare("SELECT * FROM works WHERE id=?").get(req.params.id);
   if (!w) return res.status(404).json({ error: "not found" });
