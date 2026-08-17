@@ -4,7 +4,7 @@ import {
   FileText, CheckSquare, Square, BarChart3,
 } from "lucide-react";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer,
 } from "recharts";
 import { api } from "../api";
 import { toFa } from "../jalali";
@@ -200,20 +200,23 @@ export default function TemplateReport({ templateId, templateLabel, goBack }) {
         </section>
       )}
 
-      {/* charts */}
+      {/* charts — activities along the horizontal axis, numbers on the vertical axis */}
       {show.chartViews && activeActivities.length > 0 && (
         <section className="rp-section rp-chart-section">
           <h2><Eye size={16} /> بازدید به تفکیک فعالیت</h2>
-          <div className="rp-chart-wrap">
-            <BarChart width={680} height={Math.max(220, activeActivities.length * 46)} data={chartData("views")} layout="vertical" margin={{ top: 8, right: 24, bottom: 8, left: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--rp-grid)" horizontal={false} />
-              <XAxis type="number" tick={{ fill: "var(--rp-tick)", fontSize: 11 }} />
-              <YAxis type="category" dataKey="name" width={140} tick={{ fill: "var(--rp-tick)", fontSize: 12 }} />
-              <Tooltip contentStyle={{ direction: "rtl", fontFamily: "inherit" }} formatter={(v) => fmtNum(v)} />
-              <Bar dataKey="value" radius={[0, 6, 6, 0]}>
-                {chartData("views").map((_, i) => <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />)}
-              </Bar>
-            </BarChart>
+          <div className="rp-chart-wrap" style={{ height: 300 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData("views")} margin={{ top: 8, right: 8, bottom: 48, left: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--rp-grid)" vertical={false} />
+                <XAxis dataKey="name" tick={{ fill: "var(--rp-tick)", fontSize: 11 }}
+                  angle={-25} textAnchor="end" interval={0} height={60} />
+                <YAxis tick={{ fill: "var(--rp-tick)", fontSize: 11 }} allowDecimals={false} />
+                <Tooltip contentStyle={{ direction: "rtl", fontFamily: "inherit" }} formatter={(v) => fmtNum(v)} />
+                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                  {chartData("views").map((_, i) => <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </section>
       )}
@@ -221,16 +224,19 @@ export default function TemplateReport({ templateId, templateLabel, goBack }) {
       {show.chartLikes && activeActivities.length > 0 && (
         <section className="rp-section rp-chart-section">
           <h2><Heart size={16} /> لایک به تفکیک فعالیت</h2>
-          <div className="rp-chart-wrap">
-            <BarChart width={680} height={Math.max(220, activeActivities.length * 46)} data={chartData("likes")} layout="vertical" margin={{ top: 8, right: 24, bottom: 8, left: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--rp-grid)" horizontal={false} />
-              <XAxis type="number" tick={{ fill: "var(--rp-tick)", fontSize: 11 }} />
-              <YAxis type="category" dataKey="name" width={140} tick={{ fill: "var(--rp-tick)", fontSize: 12 }} />
-              <Tooltip contentStyle={{ direction: "rtl", fontFamily: "inherit" }} formatter={(v) => fmtNum(v)} />
-              <Bar dataKey="value" radius={[0, 6, 6, 0]}>
-                {chartData("likes").map((_, i) => <Cell key={i} fill={BAR_COLORS[(i + 1) % BAR_COLORS.length]} />)}
-              </Bar>
-            </BarChart>
+          <div className="rp-chart-wrap" style={{ height: 300 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData("likes")} margin={{ top: 8, right: 8, bottom: 48, left: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--rp-grid)" vertical={false} />
+                <XAxis dataKey="name" tick={{ fill: "var(--rp-tick)", fontSize: 11 }}
+                  angle={-25} textAnchor="end" interval={0} height={60} />
+                <YAxis tick={{ fill: "var(--rp-tick)", fontSize: 11 }} allowDecimals={false} />
+                <Tooltip contentStyle={{ direction: "rtl", fontFamily: "inherit" }} formatter={(v) => fmtNum(v)} />
+                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                  {chartData("likes").map((_, i) => <Cell key={i} fill={BAR_COLORS[(i + 1) % BAR_COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </section>
       )}
@@ -238,16 +244,19 @@ export default function TemplateReport({ templateId, templateLabel, goBack }) {
       {show.chartComments && activeActivities.length > 0 && (
         <section className="rp-section rp-chart-section">
           <h2><MessageCircle size={16} /> کامنت به تفکیک فعالیت</h2>
-          <div className="rp-chart-wrap">
-            <BarChart width={680} height={Math.max(220, activeActivities.length * 46)} data={chartData("comments")} layout="vertical" margin={{ top: 8, right: 24, bottom: 8, left: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--rp-grid)" horizontal={false} />
-              <XAxis type="number" tick={{ fill: "var(--rp-tick)", fontSize: 11 }} />
-              <YAxis type="category" dataKey="name" width={140} tick={{ fill: "var(--rp-tick)", fontSize: 12 }} />
-              <Tooltip contentStyle={{ direction: "rtl", fontFamily: "inherit" }} formatter={(v) => fmtNum(v)} />
-              <Bar dataKey="value" radius={[0, 6, 6, 0]}>
-                {chartData("comments").map((_, i) => <Cell key={i} fill={BAR_COLORS[(i + 2) % BAR_COLORS.length]} />)}
-              </Bar>
-            </BarChart>
+          <div className="rp-chart-wrap" style={{ height: 300 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData("comments")} margin={{ top: 8, right: 8, bottom: 48, left: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--rp-grid)" vertical={false} />
+                <XAxis dataKey="name" tick={{ fill: "var(--rp-tick)", fontSize: 11 }}
+                  angle={-25} textAnchor="end" interval={0} height={60} />
+                <YAxis tick={{ fill: "var(--rp-tick)", fontSize: 11 }} allowDecimals={false} />
+                <Tooltip contentStyle={{ direction: "rtl", fontFamily: "inherit" }} formatter={(v) => fmtNum(v)} />
+                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                  {chartData("comments").map((_, i) => <Cell key={i} fill={BAR_COLORS[(i + 2) % BAR_COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </section>
       )}
@@ -255,16 +264,18 @@ export default function TemplateReport({ templateId, templateLabel, goBack }) {
       {show.chartTypes && typeChartData.length > 0 && (
         <section className="rp-section rp-chart-section">
           <h2><Film size={16} /> توزیع انواع اثر</h2>
-          <div className="rp-chart-wrap">
-            <BarChart width={680} height={Math.max(200, typeChartData.length * 46)} data={typeChartData} layout="vertical" margin={{ top: 8, right: 24, bottom: 8, left: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--rp-grid)" horizontal={false} />
-              <XAxis type="number" allowDecimals={false} tick={{ fill: "var(--rp-tick)", fontSize: 11 }} />
-              <YAxis type="category" dataKey="name" width={140} tick={{ fill: "var(--rp-tick)", fontSize: 12 }} />
-              <Tooltip contentStyle={{ direction: "rtl", fontFamily: "inherit" }} formatter={(v) => fmtNum(v)} />
-              <Bar dataKey="value" radius={[0, 6, 6, 0]}>
-                {typeChartData.map((_, i) => <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />)}
-              </Bar>
-            </BarChart>
+          <div className="rp-chart-wrap" style={{ height: 280 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={typeChartData} margin={{ top: 8, right: 8, bottom: 32, left: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--rp-grid)" vertical={false} />
+                <XAxis dataKey="name" tick={{ fill: "var(--rp-tick)", fontSize: 12 }} />
+                <YAxis allowDecimals={false} tick={{ fill: "var(--rp-tick)", fontSize: 11 }} />
+                <Tooltip contentStyle={{ direction: "rtl", fontFamily: "inherit" }} formatter={(v) => fmtNum(v)} />
+                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                  {typeChartData.map((_, i) => <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </section>
       )}
@@ -272,33 +283,31 @@ export default function TemplateReport({ templateId, templateLabel, goBack }) {
       {/* per-activity breakdown table */}
       <section className="rp-section">
         <h2><ImageIcon size={16} /> جدول تفکیکی هر فعالیت</h2>
-        <div className="rp-table-wrap">
-          <table className="rp-table">
-            <thead>
-              <tr>
-                <th>فعالیت</th>
-                {show.statViews && <th>بازدید</th>}
-                {show.statLikes && <th>لایک</th>}
-                {show.statComments && <th>کامنت</th>}
-                <th>تعداد آثار</th>
+        <table className="rp-table">
+          <thead>
+            <tr>
+              <th>فعالیت</th>
+              {show.statViews && <th>بازدید</th>}
+              {show.statLikes && <th>لایک</th>}
+              {show.statComments && <th>کامنت</th>}
+              <th>تعداد آثار</th>
+            </tr>
+          </thead>
+          <tbody>
+            {activeActivities.map((a) => (
+              <tr key={a.id}>
+                <td>{a.title}</td>
+                {show.statViews && <td>{fmtNum(a.views)}</td>}
+                {show.statLikes && <td>{fmtNum(a.likes)}</td>}
+                {show.statComments && <td>{fmtNum(a.comments)}</td>}
+                <td>{fmtNum(a.workCount)}</td>
               </tr>
-            </thead>
-            <tbody>
-              {activeActivities.map((a) => (
-                <tr key={a.id}>
-                  <td>{a.title}</td>
-                  {show.statViews && <td>{fmtNum(a.views)}</td>}
-                  {show.statLikes && <td>{fmtNum(a.likes)}</td>}
-                  {show.statComments && <td>{fmtNum(a.comments)}</td>}
-                  <td>{fmtNum(a.workCount)}</td>
-                </tr>
-              ))}
-              {activeActivities.length === 0 && (
-                <tr><td colSpan={5} className="muted-sm">فعالیتی انتخاب نشده.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            ))}
+            {activeActivities.length === 0 && (
+              <tr><td colSpan={5} className="muted-sm">فعالیتی انتخاب نشده.</td></tr>
+            )}
+          </tbody>
+        </table>
       </section>
     </div>
   );

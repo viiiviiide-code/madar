@@ -847,6 +847,12 @@ textarea.ed{min-height:70px;resize:vertical}
 .title-star{color:var(--gold);vertical-align:middle;margin-inline-end:2px}
 .work-card.is-featured,.work-row.is-featured{outline:1px solid var(--gold-soft)}
 .wi-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.wi-type-edit{
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:14px;margin:12px 0;
+}
+.wi-type-edit .info-k{margin-bottom:10px}
+.wi-type-edit .type-multi{gap:8px}
 .wi-top .card-star{position:static;width:auto;height:auto;padding:5px 10px;gap:6px;background:transparent}
 .featured-badge{display:inline-flex;align-items:center;gap:5px;color:var(--gold);font-size:12.5px;font-weight:600}
 
@@ -1020,13 +1026,12 @@ textarea.ed{min-height:70px;resize:vertical}
 .rp-type-card .info-v{font-size:18px;font-weight:800;color:var(--gold)}
 .rp-type-card .info-k{font-size:11.5px;color:var(--muted)}
 
-.rp-chart-section{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px 8px}
-.rp-chart-wrap{overflow-x:auto;direction:ltr}
+.rp-chart-section{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px}
+.rp-chart-wrap{width:100%;direction:ltr}
 .rp-chart-wrap svg text{font-family:inherit}
 
-.rp-table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px}
-.rp-table{width:100%;border-collapse:collapse;font-size:13px}
-.rp-table th,.rp-table td{padding:10px 14px;text-align:right;border-bottom:1px solid var(--line)}
+.rp-table{width:100%;border-collapse:collapse;font-size:13px;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.rp-table th,.rp-table td{padding:10px 14px;text-align:right;border-bottom:1px solid var(--line);word-break:break-word}
 .rp-table th{background:var(--bg2);color:var(--muted);font-weight:700;font-size:12px}
 .rp-table tr:last-child td{border-bottom:0}
 .rp-table tbody tr:hover{background:var(--bg2)}
@@ -1042,7 +1047,7 @@ textarea.ed{min-height:70px;resize:vertical}
   .rp-print-head span{font-size:11px;color:#555}
   .rp-head{display:none}
   .rp-cards,.rp-section,.rp-controls{max-width:100%;padding:0 8mm;margin-top:6mm}
-  .rp-card,.rp-type-card,.rp-chart-section,.rp-table-wrap{
+  .rp-card,.rp-type-card,.rp-chart-section,.rp-table{
     background:#fff !important;border:1px solid #ccc !important;box-shadow:none !important;color:#111 !important;
   }
   .rp-card .info-v.big,.rp-type-card .info-v,.rp-section h2,.rp-table th,.rp-table td{color:#111 !important}

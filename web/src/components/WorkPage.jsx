@@ -14,7 +14,7 @@ function fmtNum(n) {
   return toFa(v.toLocaleString("en-US"));
 }
 
-export default function WorkPage({ workId, projectId, admin, platforms, reloadMeta, goBack, openWork, openProjectWithQuery }) {
+export default function WorkPage({ workId, projectId, admin, platforms, reloadMeta, types = [], goBack, openWork, openProjectWithQuery }) {
   const [work,        setWork]        = useState(null);
   const [similar,     setSimilar]     = useState([]);
   const [draft,       setDraft]       = useState(null);
@@ -386,7 +386,7 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
         {/* info aside */}
         <aside className="work-info">
           <div className="wi-top">
-            <span className="chip">{String(work.type || "").split(",").filter(Boolean).join("، ")}</span>
+            {!admin && <span className="chip">{String(work.type || "").split(",").filter(Boolean).join("، ")}</span>}
             {admin && (
               <button className={`card-star ${draft.featured ? "on" : ""}`}
                 title={draft.featured ? "حذف از آثار شاخص" : "علامت‌گذاری به‌عنوان اثر شاخص"}
@@ -396,6 +396,28 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
             )}
             {!admin && work.featured ? <span className="featured-badge"><Star size={13} fill="currentColor" /> اثر شاخص</span> : null}
           </div>
+
+          {admin && (
+            <div className="wi-type-edit">
+              <span className="info-k">نوع اثر</span>
+              <div className="type-multi">
+                {types.map((t) => {
+                  const selectedTypes = String(draft.type || "").split(",").filter(Boolean);
+                  const on = selectedTypes.includes(t.key);
+                  return (
+                    <button key={t.key} type="button" className={`type-chip ${on ? "on" : ""}`}
+                      onClick={() => {
+                        const set = new Set(selectedTypes);
+                        if (set.has(t.key)) set.delete(t.key); else set.add(t.key);
+                        setDraft({ ...draft, type: Array.from(set).join(",") });
+                      }}>
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {admin
             ? <input className="ed h1-ed" value={draft.title}
