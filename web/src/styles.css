@@ -1036,26 +1036,46 @@ textarea.ed{min-height:70px;resize:vertical}
 .rp-table tr:last-child td{border-bottom:0}
 .rp-table tbody tr:hover{background:var(--bg2)}
 
-/* ---- print-friendly PDF export: force a clean light page, hide app chrome ---- */
+/* ---- print-friendly PDF export: one consistent light "report" look, no app chrome ---- */
 @media print{
+  html, body, #root{background:#fff !important}
   body *{visibility:hidden}
   .report-page, .report-page *{visibility:visible}
-  .report-page{position:absolute;inset:0;padding:0;background:#fff;color:#111}
-  .no-print{display:none !important}
-  .rp-print-head{display:block !important;padding:0 8mm;margin-bottom:6mm}
-  .rp-print-head h1{font-size:20px;font-weight:800;color:#111}
-  .rp-print-head span{font-size:11px;color:#555}
-  .rp-head{display:none}
-  .rp-cards,.rp-section,.rp-controls{max-width:100%;padding:0 8mm;margin-top:6mm}
-  .rp-card,.rp-type-card,.rp-chart-section,.rp-table{
-    background:#fff !important;border:1px solid #ccc !important;box-shadow:none !important;color:#111 !important;
+  .report-page{
+    position:absolute;inset:0;padding:0;margin:0;background:#fff;color:#1a1a1a;
+    font-family:inherit;
   }
-  .rp-card .info-v.big,.rp-type-card .info-v,.rp-section h2,.rp-table th,.rp-table td{color:#111 !important}
-  .rp-card .info-k,.rp-type-card .info-k{color:#555 !important}
-  .rp-table th{background:#f3f3f3 !important}
+  .no-print{display:none !important}
+  .rp-head{display:none}
+
+  .rp-print-head{
+    display:flex !important;flex-direction:column;gap:2px;
+    padding:10mm 10mm 5mm;margin:0 0 6mm;border-bottom:2px solid #E8B04B;background:#fff;
+  }
+  .rp-print-head h1{font-size:19px;font-weight:800;color:#1a1a1a}
+  .rp-print-head span{font-size:10.5px;color:#666}
+
+  .rp-cards,.rp-section{max-width:100%;padding:0 10mm;margin-top:6mm}
+
+  .rp-card,.rp-type-card,.rp-chart-section{
+    background:#fff !important;border:1px solid #dfe1e6 !important;box-shadow:none !important;
+    color:#1a1a1a !important;border-radius:8px !important;
+  }
+  .rp-card{border-top:3px solid #E8B04B !important}
+  .rp-card svg,.rp-section h2 svg{color:#B8860B !important}
+  .rp-card .info-v.big,.rp-type-card .info-v{color:#1a1a1a !important;font-size:20px !important}
+  .rp-card .info-k,.rp-type-card .info-k{color:#666 !important}
+  .rp-type-card{border-top:3px solid #E8B04B !important}
+  .rp-section h2{color:#1a1a1a !important;font-size:14px !important;border-bottom:1px solid #eee;padding-bottom:8px}
+
+  .rp-table{border:1px solid #dfe1e6 !important;border-radius:8px !important}
+  .rp-table th,.rp-table td{color:#1a1a1a !important;border-bottom:1px solid #eee !important}
+  .rp-table th{background:#f7f5ef !important;color:#555 !important}
+  .rp-table tbody tr:hover{background:none !important}
+
   .rp-chart-section{break-inside:avoid;page-break-inside:avoid}
-  .rp-card{break-inside:avoid}
-  .report-page{--rp-grid: rgba(0,0,0,.15); --rp-tick: #555;}
+  .rp-card,.rp-type-card{break-inside:avoid}
+  .report-page{--rp-grid: rgba(0,0,0,.12); --rp-tick: #444;}
 }
 
 /* user management panel */
