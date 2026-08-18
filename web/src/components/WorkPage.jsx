@@ -14,7 +14,17 @@ function fmtNum(n) {
   return toFa(v.toLocaleString("en-US"));
 }
 
-export default function WorkPage({ workId, projectId, admin, platforms, reloadMeta, types = [], goBack, openWork, openProjectWithQuery }) {
+export default function WorkPage({ workId, projectId, admin, platforms, reloadMeta, types: typesProp = [], goBack, openWork, openProjectWithQuery }) {
+  // fetch our own copy of the work-types list — self-contained, so this never
+  // depends on whether/when the parent happened to pass a populated `types` prop
+  const [ownTypes, setOwnTypes] = useState(typesProp);
+  useEffect(() => {
+    api.types().then((t) => { if (Array.isArray(t) && t.length) setOwnTypes(t); }).catch(() => {});
+  }, []);
+  useEffect(() => {
+    if (Array.isArray(typesProp) && typesProp.length) setOwnTypes(typesProp);
+  }, [typesProp]);
+  const types = ownTypes;
   const [work,        setWork]        = useState(null);
   const [similar,     setSimilar]     = useState([]);
   const [draft,       setDraft]       = useState(null);
@@ -401,6 +411,9 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
             <div className="wi-type-edit">
               <span className="info-k">نوع اثر</span>
               <div className="type-multi">
+                {types.length === 0 && (
+                  <span className="muted-sm">نوعی تعریف نشده — از فرم «ثبت اثر» یک نوع اضافه کن.</span>
+                )}
                 {types.map((t) => {
                   const selectedTypes = String(draft.type || "").split(",").filter(Boolean);
                   const on = selectedTypes.includes(t.key);
