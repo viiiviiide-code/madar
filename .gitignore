@@ -32,3 +32,4 @@ database/
 database-backup/
 database-backup-*/
 *.backup
+web/package-lock.json
