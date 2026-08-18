@@ -4,7 +4,7 @@ import {
   FileText, CheckSquare, Square, BarChart3,
 } from "lucide-react";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer, LabelList,
 } from "recharts";
 import { api } from "../api";
 import { toFa } from "../jalali";
@@ -206,13 +206,24 @@ export default function TemplateReport({ templateId, templateLabel, goBack }) {
           <h2><Eye size={16} /> بازدید به تفکیک فعالیت</h2>
           <div className="rp-chart-wrap" style={{ height: 300 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData("views")} margin={{ top: 8, right: 8, bottom: 48, left: 8 }}>
+              <BarChart data={chartData("views")} margin={{ top: 26, right: 8, bottom: 48, left: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--rp-grid)" vertical={false} />
                 <XAxis dataKey="name" tick={{ fill: "var(--rp-tick)", fontSize: 11 }}
                   angle={-25} textAnchor="end" interval={0} height={60} />
                 <YAxis tick={{ fill: "var(--rp-tick)", fontSize: 11 }} allowDecimals={false} />
-                <Tooltip contentStyle={{ direction: "rtl", fontFamily: "inherit" }} formatter={(v) => fmtNum(v)} />
+                <Tooltip
+                  cursor={{ fill: "rgba(232,176,75,0.10)" }}
+                  contentStyle={{
+                    direction: "rtl", fontFamily: "inherit", background: "var(--panel)",
+                    border: "1px solid var(--line)", borderRadius: 10, color: "var(--ink)",
+                  }}
+                  labelStyle={{ color: "var(--ink)", fontWeight: 700, marginBottom: 4 }}
+                  itemStyle={{ color: "var(--gold)" }}
+                  formatter={(v) => fmtNum(v)}
+                />
                 <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                  <LabelList dataKey="value" position="top" formatter={fmtNum}
+                    style={{ fill: "var(--rp-tick)", fontSize: 11, fontWeight: 700 }} />
                   {chartData("views").map((_, i) => <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />)}
                 </Bar>
               </BarChart>
@@ -226,13 +237,24 @@ export default function TemplateReport({ templateId, templateLabel, goBack }) {
           <h2><Heart size={16} /> لایک به تفکیک فعالیت</h2>
           <div className="rp-chart-wrap" style={{ height: 300 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData("likes")} margin={{ top: 8, right: 8, bottom: 48, left: 8 }}>
+              <BarChart data={chartData("likes")} margin={{ top: 26, right: 8, bottom: 48, left: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--rp-grid)" vertical={false} />
                 <XAxis dataKey="name" tick={{ fill: "var(--rp-tick)", fontSize: 11 }}
                   angle={-25} textAnchor="end" interval={0} height={60} />
                 <YAxis tick={{ fill: "var(--rp-tick)", fontSize: 11 }} allowDecimals={false} />
-                <Tooltip contentStyle={{ direction: "rtl", fontFamily: "inherit" }} formatter={(v) => fmtNum(v)} />
+                <Tooltip
+                  cursor={{ fill: "rgba(232,176,75,0.10)" }}
+                  contentStyle={{
+                    direction: "rtl", fontFamily: "inherit", background: "var(--panel)",
+                    border: "1px solid var(--line)", borderRadius: 10, color: "var(--ink)",
+                  }}
+                  labelStyle={{ color: "var(--ink)", fontWeight: 700, marginBottom: 4 }}
+                  itemStyle={{ color: "var(--gold)" }}
+                  formatter={(v) => fmtNum(v)}
+                />
                 <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                  <LabelList dataKey="value" position="top" formatter={fmtNum}
+                    style={{ fill: "var(--rp-tick)", fontSize: 11, fontWeight: 700 }} />
                   {chartData("likes").map((_, i) => <Cell key={i} fill={BAR_COLORS[(i + 1) % BAR_COLORS.length]} />)}
                 </Bar>
               </BarChart>
@@ -246,13 +268,24 @@ export default function TemplateReport({ templateId, templateLabel, goBack }) {
           <h2><MessageCircle size={16} /> کامنت به تفکیک فعالیت</h2>
           <div className="rp-chart-wrap" style={{ height: 300 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData("comments")} margin={{ top: 8, right: 8, bottom: 48, left: 8 }}>
+              <BarChart data={chartData("comments")} margin={{ top: 26, right: 8, bottom: 48, left: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--rp-grid)" vertical={false} />
                 <XAxis dataKey="name" tick={{ fill: "var(--rp-tick)", fontSize: 11 }}
                   angle={-25} textAnchor="end" interval={0} height={60} />
                 <YAxis tick={{ fill: "var(--rp-tick)", fontSize: 11 }} allowDecimals={false} />
-                <Tooltip contentStyle={{ direction: "rtl", fontFamily: "inherit" }} formatter={(v) => fmtNum(v)} />
+                <Tooltip
+                  cursor={{ fill: "rgba(232,176,75,0.10)" }}
+                  contentStyle={{
+                    direction: "rtl", fontFamily: "inherit", background: "var(--panel)",
+                    border: "1px solid var(--line)", borderRadius: 10, color: "var(--ink)",
+                  }}
+                  labelStyle={{ color: "var(--ink)", fontWeight: 700, marginBottom: 4 }}
+                  itemStyle={{ color: "var(--gold)" }}
+                  formatter={(v) => fmtNum(v)}
+                />
                 <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                  <LabelList dataKey="value" position="top" formatter={fmtNum}
+                    style={{ fill: "var(--rp-tick)", fontSize: 11, fontWeight: 700 }} />
                   {chartData("comments").map((_, i) => <Cell key={i} fill={BAR_COLORS[(i + 2) % BAR_COLORS.length]} />)}
                 </Bar>
               </BarChart>
@@ -266,12 +299,23 @@ export default function TemplateReport({ templateId, templateLabel, goBack }) {
           <h2><Film size={16} /> توزیع انواع اثر</h2>
           <div className="rp-chart-wrap" style={{ height: 280 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={typeChartData} margin={{ top: 8, right: 8, bottom: 32, left: 8 }}>
+              <BarChart data={typeChartData} margin={{ top: 26, right: 8, bottom: 32, left: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--rp-grid)" vertical={false} />
                 <XAxis dataKey="name" tick={{ fill: "var(--rp-tick)", fontSize: 12 }} />
                 <YAxis allowDecimals={false} tick={{ fill: "var(--rp-tick)", fontSize: 11 }} />
-                <Tooltip contentStyle={{ direction: "rtl", fontFamily: "inherit" }} formatter={(v) => fmtNum(v)} />
+                <Tooltip
+                  cursor={{ fill: "rgba(232,176,75,0.10)" }}
+                  contentStyle={{
+                    direction: "rtl", fontFamily: "inherit", background: "var(--panel)",
+                    border: "1px solid var(--line)", borderRadius: 10, color: "var(--ink)",
+                  }}
+                  labelStyle={{ color: "var(--ink)", fontWeight: 700, marginBottom: 4 }}
+                  itemStyle={{ color: "var(--gold)" }}
+                  formatter={(v) => fmtNum(v)}
+                />
                 <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                  <LabelList dataKey="value" position="top" formatter={fmtNum}
+                    style={{ fill: "var(--rp-tick)", fontSize: 11, fontWeight: 700 }} />
                   {typeChartData.map((_, i) => <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />)}
                 </Bar>
               </BarChart>
