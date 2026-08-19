@@ -21,7 +21,7 @@ fi
 
 echo "== دریافت آخرین نسخه از گیت‌هاب =="
 before=$(git rev-parse HEAD)
-git pull origin main
+git pull origin master
 after=$(git rev-parse HEAD)
 
 if [ "$before" == "$after" ]; then
