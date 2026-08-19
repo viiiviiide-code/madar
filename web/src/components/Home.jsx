@@ -37,7 +37,7 @@ export default function Home({
 
   const isTemplate = mode?.type === "template";
   const isNone = mode?.type === "none";
-  const activeTemplate = isTemplate ? templates.find((t) => t.id === mode.id) : null;
+  const activeTemplate = isTemplate ? templates.find((t) => String(t.id) === String(mode.id)) : null;
   const [tplEditTarget, setTplEditTarget] = useState(null);
 
   // date-mode range (Jalali)
@@ -514,7 +514,7 @@ function TemplatePanel({ templates, reload, onClose, flash, onEnterTemplate, ini
     theme: "orbit", font: "Vazirmatn",
   });
   useEffect(() => { saveDraft(TPL_DRAFT_KEY, draft); }, [draft]);
-  const initial = initialEditId ? templates.find((t) => t.id === initialEditId) : null;
+  const initial = initialEditId ? templates.find((t) => String(t.id) === String(initialEditId)) : null;
   const [editId, setEditId] = useState(initialEditId || null);
   const [edit, setEdit] = useState(initial
     ? { label: initial.label, from_date: initial.from_date, to_date: initial.to_date, theme: initial.theme || "orbit", font: initial.font || "Vazirmatn" }

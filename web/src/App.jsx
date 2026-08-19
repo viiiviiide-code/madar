@@ -167,7 +167,7 @@ export default function App() {
     e.stopPropagation();
     if (!confirm(`تمپلیت «${t.label}» حذف شود؟ فعالیت‌های داخلش حذف نمی‌شوند، فقط از این تمپلیت جدا می‌شوند.`)) return;
     await api.delTemplate(t.id);
-    if (mode.type === "template" && mode.id === t.id) { setMode({ type: "date" }); go(viewForMode({ type: "date" })); }
+    if (mode.type === "template" && String(mode.id) === String(t.id)) { setMode({ type: "date" }); go(viewForMode({ type: "date" })); }
     loadTemplates(); loadProjects();
   };
   const delActivityFromSidebar = async (p, e) => {
@@ -218,7 +218,7 @@ export default function App() {
               const open = !!expandedTpl[t.id];
               return (
                 <div key={t.id} className="sb-tpl-group">
-                  <div className={`sb-item sb-tpl-row ${mode.type === "template" && mode.id === t.id ? "active" : ""}`}>
+                  <div className={`sb-item sb-tpl-row ${mode.type === "template" && String(mode.id) === String(t.id) ? "active" : ""}`}>
                     <button className="sb-tpl-chevron" onClick={() => setExpandedTpl((e) => ({ ...e, [t.id]: !open }))}
                       title={open ? "بستن فعالیت‌ها" : "نمایش فعالیت‌ها"}>
                       <ChevronDown size={13} className={`sb-chevron ${open ? "open" : ""}`} />

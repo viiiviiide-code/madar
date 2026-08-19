@@ -990,7 +990,8 @@ textarea.ed{min-height:70px;resize:vertical}
   border-radius:12px;padding:12px;
 }
 .rp-custom-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
-.rp-select-actions{display:flex;gap:6px}
+.rp-select-actions{display:flex;gap:8px;flex-wrap:wrap}
+.rp-select-actions .btn{white-space:nowrap}
 .rp-activity-list{display:flex;flex-wrap:wrap;gap:8px}
 .rp-act-chip{
   display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:9px;

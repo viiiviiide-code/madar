@@ -121,8 +121,8 @@ export default function TemplateReport({ templateId, templateLabel, goBack }) {
             <div className="rp-custom-row">
               <span className="tp-subhead">فعالیت‌ها</span>
               <div className="rp-select-actions">
-                <button className="mini" onClick={selectAll}>همهٔ فعالیت‌ها</button>
-                <button className="mini" onClick={selectNone}>لغو انتخاب همه</button>
+                <button className="btn light sm" onClick={selectAll}>همهٔ فعالیت‌ها</button>
+                <button className="btn ghost sm" onClick={selectNone}>لغو انتخاب همه</button>
               </div>
             </div>
             <div className="rp-activity-list">
