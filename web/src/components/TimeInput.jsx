@@ -5,6 +5,8 @@ import { toFa } from "../jalali";
 // A simple H:M selector in the site's own dropdown style (matches JalaliInput),
 // so nothing here depends on the browser's native time-picker widget.
 // value/onChange both work with a plain "HH:MM" 24-hour string.
+// Kept left-to-right (hour on the left, minute on the right) like a normal clock
+// reading, with a permanent caption under each box.
 export default function TimeInput({ value, onChange }) {
   const [h, m] = /^(\d{1,2}):(\d{1,2})$/.test(value || "") ? value.split(":").map(Number) : [null, null];
 
@@ -17,19 +19,25 @@ export default function TimeInput({ value, onChange }) {
   return (
     <div className="time-in">
       <Clock size={13} className="time-in-ic" />
-      <select value={h ?? ""} onChange={(e) => set({ h: +e.target.value })}>
-        <option value="" disabled>ساعت</option>
-        {Array.from({ length: 24 }, (_, i) => i).map((n) => (
-          <option key={n} value={n}>{toFa(String(n).padStart(2, "0"))}</option>
-        ))}
-      </select>
+      <div className="time-in-col">
+        <select value={h ?? ""} onChange={(e) => set({ h: +e.target.value })}>
+          <option value="" disabled>—</option>
+          {Array.from({ length: 24 }, (_, i) => i).map((n) => (
+            <option key={n} value={n}>{toFa(String(n).padStart(2, "0"))}</option>
+          ))}
+        </select>
+        <span className="time-in-caption">ساعت</span>
+      </div>
       <span className="time-in-sep">:</span>
-      <select value={m ?? ""} onChange={(e) => set({ m: +e.target.value })}>
-        <option value="" disabled>دقیقه</option>
-        {Array.from({ length: 60 }, (_, i) => i).map((n) => (
-          <option key={n} value={n}>{toFa(String(n).padStart(2, "0"))}</option>
-        ))}
-      </select>
+      <div className="time-in-col">
+        <select value={m ?? ""} onChange={(e) => set({ m: +e.target.value })}>
+          <option value="" disabled>—</option>
+          {Array.from({ length: 60 }, (_, i) => i).map((n) => (
+            <option key={n} value={n}>{toFa(String(n).padStart(2, "0"))}</option>
+          ))}
+        </select>
+        <span className="time-in-caption">دقیقه</span>
+      </div>
     </div>
   );
 }

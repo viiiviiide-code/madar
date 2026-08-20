@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { X, Plus, Trash2, UserPlus, Shield, Eye, Layers, Circle, ChevronDown } from "lucide-react";
+import { X, Plus, Trash2, UserPlus, Shield, Eye, Layers, Circle, ChevronDown, KeyRound } from "lucide-react";
 import { api } from "../api";
 
 export default function UserManagement({ templates, onClose }) {
@@ -8,6 +8,10 @@ export default function UserManagement({ templates, onClose }) {
   const [newUser, setNewUser] = useState({ username: "", password: "", role: "viewer" });
   const [error, setError] = useState("");
   const [expandedId, setExpandedId] = useState(null);
+  const [pwTarget, setPwTarget] = useState(null);
+  const [pwVal, setPwVal] = useState("");
+  const [pwErr, setPwErr] = useState("");
+  const [pwBusy, setPwBusy] = useState(false);
   const [grantTplId, setGrantTplId] = useState({});   // { [userId]: templateId | "" } — for "whole template" mode
   const [grantMode, setGrantMode] = useState({});      // { [userId]: "template" | "activity" }
   const [grantTplForActivity, setGrantTplForActivity] = useState({}); // { [userId]: templateId | "" } — filter for activity picker
@@ -39,6 +43,20 @@ export default function UserManagement({ templates, onClose }) {
     if (!confirm(`کاربر «${u.username}» حذف شود؟`)) return;
     try { await api.delUser(u.id); await reload(); }
     catch (e) { alert(e.message || "حذف ناموفق بود."); }
+  };
+
+  const resetPassword = async () => {
+    setPwErr("");
+    if (pwVal.length < 6) { setPwErr("رمز باید حداقل ۶ کاراکتر باشد."); return; }
+    setPwBusy(true);
+    try {
+      await api.updateUser(pwTarget.id, { password: pwVal });
+      setPwTarget(null); setPwVal("");
+    } catch (e) {
+      setPwErr(e.message || "تغییر رمز ناموفق بود.");
+    } finally {
+      setPwBusy(false);
+    }
   };
 
   const grantTemplate = async (userId) => {
@@ -123,6 +141,10 @@ export default function UserManagement({ templates, onClose }) {
                     <ChevronDown size={14} className={`sb-chevron ${open ? "open" : ""}`} />
                   </button>
                 )}
+                <button className="mini" title="تغییر رمز عبور"
+                  onClick={() => { setPwTarget(u); setPwVal(""); setPwErr(""); }}>
+                  <KeyRound size={13} />
+                </button>
                 <button className="mini danger" title="حذف کاربر" onClick={() => delUser(u)}>
                   <Trash2 size={13} />
                 </button>
@@ -196,6 +218,29 @@ export default function UserManagement({ templates, onClose }) {
           );
         })}
       </div>
+
+      {pwTarget && (
+        <div className="modal-overlay" onClick={() => setPwTarget(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="tp-head">
+              <h3><KeyRound size={16} /> تغییر رمز «{pwTarget.username}»</h3>
+              <button className="x-btn" onClick={() => setPwTarget(null)}><X size={18} /></button>
+            </div>
+            <p className="muted-sm">یه رمز جدید بذار و به کاربر بده — رمز قبلی دیگه کار نمی‌کنه.</p>
+            <input type="password" placeholder="رمز جدید (حداقل ۶ کاراکتر)" value={pwVal}
+              autoFocus
+              onChange={(e) => setPwVal(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && resetPassword()} />
+            {pwErr && <div className="login-error">{pwErr}</div>}
+            <div className="dp-actions">
+              <button className="btn ghost sm" onClick={() => setPwTarget(null)}>انصراف</button>
+              <button className="btn gold sm" disabled={pwBusy} onClick={resetPassword}>
+                {pwBusy ? "در حال ذخیره…" : "ذخیرهٔ رمز جدید"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
