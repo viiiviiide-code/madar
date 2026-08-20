@@ -251,7 +251,7 @@ export default function Home({
       )}
 
       {/* template header bar — only in template mode, gives a quick "new activity" shortcut */}
-      {isTemplate && (
+      {isTemplate && !homeTool && (
         <div className="daterange-bar template-bar">
           <span className="drb-label tpl-title">{activeTemplate?.label || "تمپلیت"}</span>
           <button className="btn light sm" onClick={() => openReport?.(activeTemplate?.id, activeTemplate?.label)}>
