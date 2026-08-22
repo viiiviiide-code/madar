@@ -1440,6 +1440,37 @@ textarea.ed{min-height:70px;resize:vertical}
   flex:1;background:none;border:none;outline:none;color:var(--ink);
   padding:12px 0;font-size:14px;min-width:0;
 }
+/* neutralize the browser's forced autofill background (Chrome/Edge/Safari).
+   Uses literal colors (not CSS vars) inside the box-shadow because some
+   browsers won't resolve custom properties inside this particular override,
+   which is why the earlier attempt didn't visibly change anything. */
+.login-field input:-webkit-autofill,
+.login-field input:-webkit-autofill:hover,
+.login-field input:-webkit-autofill:focus,
+.login-field input:-webkit-autofill:active{
+  -webkit-text-fill-color:#ECEEF6 !important;
+  caret-color:#ECEEF6 !important;
+  -webkit-box-shadow:0 0 0 1000px #141B2B inset !important;
+  box-shadow:0 0 0 1000px #141B2B inset !important;
+  background-color:#141B2B !important;
+  background-clip:content-box !important;
+  border:none !important;
+  transition:background-color 5000s ease-in-out 0s, box-shadow 5000s ease-in-out 0s;
+}
+:root[data-theme="light"] .login-field input:-webkit-autofill,
+:root[data-theme="light"] .login-field input:-webkit-autofill:hover,
+:root[data-theme="light"] .login-field input:-webkit-autofill:focus,
+:root[data-theme="light"] .login-field input:-webkit-autofill:active{
+  -webkit-text-fill-color:#1B2233 !important;
+  caret-color:#1B2233 !important;
+  -webkit-box-shadow:0 0 0 1000px #FFFFFF inset !important;
+  box-shadow:0 0 0 1000px #FFFFFF inset !important;
+  background-color:#FFFFFF !important;
+}
+.login-field input:autofill{
+  -webkit-text-fill-color:#ECEEF6 !important;
+  box-shadow:0 0 0 1000px #141B2B inset !important;
+}
 .login-eye{color:var(--muted);display:flex;align-items:center;flex-shrink:0}
 .login-eye:hover{color:var(--gold)}
 .login-error{
