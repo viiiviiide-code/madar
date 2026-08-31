@@ -55,4 +55,14 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-module.exports = { sign, verify, requireAuth, requireAdmin };
+// admin OR the restricted "content editor" role: can only touch the two data-entry
+// endpoints this guards (project stats, and a work's engagement numbers) — never
+// media, titles, or structural actions like delete.
+function requireEditor(req, res, next) {
+  if (!req.user || (req.user.role !== "admin" && req.user.role !== "editor")) {
+    return res.status(403).json({ error: "اجازهٔ این عملیات را نداری" });
+  }
+  next();
+}
+
+module.exports = { sign, verify, requireAuth, requireAdmin, requireEditor };

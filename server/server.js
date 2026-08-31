@@ -3,6 +3,7 @@ const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
 
 // بارگذاری سبک .env (بدون نیاز به پکیج dotenv) — اگر server/.env وجود داشته باشد.
 (function loadEnvFile() {
@@ -20,7 +21,7 @@ const fs = require("fs");
 })();
 
 const db = require("./db");
-const { sign, requireAuth, requireAdmin } = require("./auth");
+const { sign, requireAuth, requireAdmin, requireEditor } = require("./auth");
 
 const app = express();
 app.use(cors());
@@ -35,6 +36,15 @@ app.post("/api/login", (req, res) => {
   }
   const token = sign({ id: u.id, username: u.username, role: u.role });
   res.json({ token, username: u.username, role: u.role });
+});
+
+/* ---------- public, no-login work page (share link) ---------- */
+// looked up by an unguessable random token, never by the work's real id, so this
+// stays open even though everything else under /api requires login below.
+app.get("/api/public/works/:token", (req, res) => {
+  const w = db.prepare("SELECT * FROM works WHERE share_token=?").get(req.params.token);
+  if (!w) return res.status(404).json({ error: "لینک نامعتبر است یا حذف شده" });
+  res.json(hydrateWork(w));
 });
 
 // همه چیز زیر /api از این به بعد نیاز به ورود دارد؛ لاگین از قبل تعریف شده و مستثناست.
@@ -74,7 +84,7 @@ app.post("/api/users", requireAdmin, (req, res) => {
   if (db.prepare("SELECT id FROM users WHERE username=?").get(username)) {
     return res.status(400).json({ error: "این نام کاربری قبلاً استفاده شده" });
   }
-  const finalRole = role === "admin" ? "admin" : "viewer";
+  const finalRole = role === "admin" ? "admin" : role === "editor" ? "editor" : "viewer";
   const r = db.prepare("INSERT INTO users (username,password_hash,role,created_at) VALUES (?,?,?,?)")
     .run(username, db.hashPassword(password), finalRole, new Date().toISOString());
   res.json({ id: r.lastInsertRowid, username, role: finalRole });
@@ -87,7 +97,7 @@ app.put("/api/users/:id", requireAdmin, (req, res) => {
     if (String(password).length < 6) return res.status(400).json({ error: "رمز باید حداقل ۶ کاراکتر باشد" });
     db.prepare("UPDATE users SET password_hash=? WHERE id=?").run(db.hashPassword(password), u.id);
   }
-  if (role === "admin" || role === "viewer") {
+  if (role === "admin" || role === "viewer" || role === "editor") {
     db.prepare("UPDATE users SET role=? WHERE id=?").run(role, u.id);
   }
   res.json({ ok: true });
@@ -481,7 +491,10 @@ app.post("/api/projects/:id/duplicate", requireAdmin, (req, res) => {
 });
 
 /* ---------- stats ---------- */
-app.put("/api/projects/:id/stats", requireAdmin, (req, res) => {
+// requireEditor: admin OR the restricted "content editor" role — but still scoped
+// to whatever templates/activities that person was actually granted.
+app.put("/api/projects/:id/stats", requireEditor, (req, res) => {
+  if (!canSeeProject(req, req.params.id)) return res.status(403).json({ error: "دسترسی نداری" });
   const pid = req.params.id;
   const items = req.body.stats || [];
   const tx = db.transaction(() => {
@@ -680,6 +693,43 @@ app.put("/api/works/:id", requireAdmin, (req, res) => {
 
 app.delete("/api/works/:id", requireAdmin, (req, res) => {
   db.prepare("DELETE FROM works WHERE id=?").run(req.params.id);
+  res.json({ ok: true });
+});
+
+/* narrow endpoint for the "editor" role: touches ONLY platform-view numbers and the
+   TV broadcast schedule — never title/description/media/keywords/type, and never
+   deletes anything. This is the entire surface that role is allowed to write to. */
+app.put("/api/works/:id/engagement", requireEditor, (req, res) => {
+  const cur = db.prepare("SELECT * FROM works WHERE id=?").get(req.params.id);
+  if (!cur) return res.status(404).json({ error: "not found" });
+  if (!canSeeProject(req, cur.project_id)) return res.status(403).json({ error: "دسترسی نداری" });
+  const b = req.body || {};
+  const tx = db.transaction(() => {
+    if ("platformViews" in b) savePlatformViews(req.params.id, b.platformViews);
+    if ("tv" in b) saveTvBroadcasts(req.params.id, b.tv);
+  });
+  tx();
+  res.json(hydrateWork(db.prepare("SELECT * FROM works WHERE id=?").get(req.params.id)));
+});
+
+/* share link for a single work's public (no-login) page — any logged-in user who can
+   see the work may create/reuse its link; the token itself is what gates public access */
+app.post("/api/works/:id/share", (req, res) => {
+  const w = db.prepare("SELECT * FROM works WHERE id=?").get(req.params.id);
+  if (!w) return res.status(404).json({ error: "not found" });
+  if (!canSeeProject(req, w.project_id)) return res.status(403).json({ error: "دسترسی نداری" });
+  let token = w.share_token;
+  if (!token) {
+    token = crypto.randomBytes(16).toString("hex");
+    db.prepare("UPDATE works SET share_token=? WHERE id=?").run(token, w.id);
+  }
+  res.json({ token });
+});
+app.delete("/api/works/:id/share", (req, res) => {
+  const w = db.prepare("SELECT * FROM works WHERE id=?").get(req.params.id);
+  if (!w) return res.status(404).json({ error: "not found" });
+  if (!canSeeProject(req, w.project_id)) return res.status(403).json({ error: "دسترسی نداری" });
+  db.prepare("UPDATE works SET share_token=NULL WHERE id=?").run(req.params.id);
   res.json({ ok: true });
 });
 

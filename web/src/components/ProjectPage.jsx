@@ -5,9 +5,19 @@ import {
   RotateCcw, Volume2, VolumeX, Film, Info, Star, Copy, Link2, Camera, Save, Edit3, FolderInput,
 } from "lucide-react";
 import { api } from "../api";
-import { formatJalali, toFa, jalaliToISO, isValidISO } from "../jalali";
+import { formatJalali, toFa, faToEn, jalaliToISO, isValidISO } from "../jalali";
 import KeywordInput from "./KeywordInput.jsx";
 import CopyWorkModal from "./CopyWorkModal.jsx";
+
+/* remembers the works-list view (filters + grid/list mode) and which work was last
+   opened, per activity, so coming back from a work's page restores exactly where the
+   person left off instead of resetting to the top with default filters */
+function loadProjectViewState(projectId) {
+  try { return JSON.parse(sessionStorage.getItem(`madar_pv_${projectId}`) || "null"); } catch { return null; }
+}
+function saveProjectViewState(projectId, state) {
+  try { sessionStorage.setItem(`madar_pv_${projectId}`, JSON.stringify(state)); } catch {}
+}
 
 /* tiny localStorage-backed draft helper so a mid-typing refresh doesn't lose form data */
 function loadWorkDraft(key) {
@@ -24,20 +34,30 @@ import * as XLSX from "xlsx";
 
 const ICONS = { video: Play, poster: Maximize2, image: LayoutGrid, audio: Eye, screenshot: Camera, link: Link2 };
 
+/* ---- number field mask: digits only, Persian numerals, ٬ every 3 digits ---- */
+function formatNumberInput(raw) {
+  const digits = faToEn(String(raw ?? "")).replace(/[^\d]/g, "");
+  if (!digits) return "";
+  const noLeadingZeros = String(Number(digits));
+  const grouped = noLeadingZeros.replace(/\B(?=(\d{3})+(?!\d))/g, "٬");
+  return toFa(grouped);
+}
+
 /* ---- compact number: 420000 → ۴۲۰ هزار, 1200000 → ۱.۲ میلیون ---- */
 function fmtNum(n) {
   const v = Number(n) || 0;
   return toFa(v.toLocaleString("en-US"));
 }
 
-export default function ProjectPage({ projectId, admin, types, reloadMeta, goHome, openWork, initialQuery = "", templates = [], onProjectChanged, onProjectLoaded }) {
+export default function ProjectPage({ projectId, admin, canEditStats = false, types, reloadMeta, goHome, openWork, initialQuery = "", templates = [], onProjectChanged, onProjectLoaded }) {
+  const savedView = loadProjectViewState(projectId);
   const [project, setProject] = useState(null);
   const [works,   setWorks]   = useState([]);
-  const [q,       setQ]       = useState(initialQuery);   // unified search
-  const [type,    setType]    = useState("all");
-  const [sort,    setSort]    = useState("new");
-  const [featuredOnly, setFeaturedOnly] = useState(false);
-  const [viewMode,setViewMode]= useState("list");
+  const [q,       setQ]       = useState(initialQuery || savedView?.q || "");   // unified search
+  const [type,    setType]    = useState(savedView?.type || "all");
+  const [sort,    setSort]    = useState(savedView?.sort || "new");
+  const [featuredOnly, setFeaturedOnly] = useState(savedView?.featuredOnly || false);
+  const [viewMode,setViewMode]= useState(savedView?.viewMode || "list");
   const [addOpen, setAddOpen] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const [statLabels, setStatLabels] = useState([]);
@@ -77,7 +97,28 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
 
   useEffect(() => { loadProject(); }, [projectId, refresh]);
   useEffect(() => { loadWorks(); },  [projectId, type, q, sort, featuredOnly, refresh]);
-  useEffect(() => { if (admin) api.statLabels().then((v) => setStatLabels(Array.isArray(v) ? v : [])).catch(() => {}); }, [admin]);
+  useEffect(() => { if (canEditStats) api.statLabels().then((v) => setStatLabels(Array.isArray(v) ? v : [])).catch(() => {}); }, [canEditStats]);
+
+  // remember filters + grid/list mode for this activity across navigation
+  useEffect(() => {
+    saveProjectViewState(projectId, { q, type, sort, featuredOnly, viewMode });
+  }, [projectId, q, type, sort, featuredOnly, viewMode]);
+
+  // after works load, if we're coming back from a work's page, scroll straight to it
+  // instead of dumping the person back at the top of the list
+  useEffect(() => {
+    if (!works.length) return;
+    const lastId = sessionStorage.getItem(`madar_lastwork_${projectId}`);
+    if (!lastId) return;
+    const el = document.getElementById(`work-${lastId}`);
+    if (el) el.scrollIntoView({ block: "center" });
+    sessionStorage.removeItem(`madar_lastwork_${projectId}`);
+  }, [works, projectId]);
+
+  const goToWork = (workId) => {
+    try { sessionStorage.setItem(`madar_lastwork_${projectId}`, String(workId)); } catch {}
+    openWork(workId);
+  };
 
   // fullscreen change listener
   useEffect(() => {
@@ -260,9 +301,9 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
       <section>
         <div className="row-head">
           <h2>آمار پروژه</h2>
-          {admin && (
+          {canEditStats && (
             <button className="btn ghost sm"
-              onClick={() => setStats([...project.stats, { label: "", value: "۰", descr: "" }])}>
+              onClick={() => setStats([...project.stats, { label: "", value: "", descr: "" }])}>
               <Plus size={14} /> افزودن فیلد
             </button>
           )}
@@ -273,10 +314,10 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
         <div className="stats-row centered">
           {project.stats.map((s, i) => (
             <div className="stat-card" key={i}>
-              {admin ? (
+              {canEditStats ? (
                 <>
-                  <input className="stat-val-in" value={s.value}
-                    onChange={(e) => setStats(project.stats.map((x, j) => j === i ? { ...x, value: e.target.value } : x))} />
+                  <input className="stat-val-in" value={s.value} placeholder="۰"
+                    onChange={(e) => setStats(project.stats.map((x, j) => j === i ? { ...x, value: formatNumberInput(e.target.value) } : x))} />
                   <input className="stat-lbl-in" value={s.label} list="stat-label-options" placeholder="عنوان آمار"
                     onChange={(e) => setStats(project.stats.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} />
                   <textarea className="stat-descr-in" placeholder="توضیح (اختیاری)" value={s.descr || ""} rows={1}
@@ -392,7 +433,7 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
         {viewMode === "grid" ? (
           <div className="works-grid">
             {works.map((w) => (
-              <div key={w.id} className={`work-card ${w.featured ? "is-featured" : ""}`} onClick={() => openWork(w.id)} role="button" tabIndex={0}>
+              <div key={w.id} id={`work-${w.id}`} className={`work-card ${w.featured ? "is-featured" : ""}`} onClick={() => goToWork(w.id)} role="button" tabIndex={0}>
                 {admin && (
                   <div className="card-admin-tools">
                     <button className={`card-star ${w.featured ? "on" : ""}`} title={w.featured ? "حذف از آثار شاخص" : "علامت‌گذاری به‌عنوان اثر شاخص"}
@@ -432,7 +473,7 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
         ) : (
           <div className="works-list">
             {works.map((w) => (
-              <div key={w.id} className={`work-row ${w.featured ? "is-featured" : ""}`} onClick={() => openWork(w.id)} role="button" tabIndex={0}>
+              <div key={w.id} id={`work-${w.id}`} className={`work-row ${w.featured ? "is-featured" : ""}`} onClick={() => goToWork(w.id)} role="button" tabIndex={0}>
                 <div className="wr-thumb"><Media work={w} small /></div>
                 <div className="wr-body">
                   <div className="wr-line1">
@@ -488,7 +529,10 @@ export default function ProjectPage({ projectId, admin, types, reloadMeta, goHom
 }
 
 /* ---- media block — handles vertical videos ---- */
-/* captures a representative (non-black) frame for video thumbnails */
+/* captures a representative (non-black) frame for video thumbnails.
+   many videos fade in from black, so a single fixed seek point often lands on
+   a black frame — this tries a few points further into the clip until it
+   finds one that isn't near-black, instead of settling for the first try. */
 export function VideoThumb({ url, className }) {
   const [poster, setPoster] = useState(null);
   const [failed, setFailed] = useState(false);
@@ -497,21 +541,46 @@ export function VideoThumb({ url, className }) {
     const v = document.createElement("video");
     v.muted = true; v.preload = "auto"; v.crossOrigin = "anonymous"; v.src = url;
     const cleanup = () => { try { v.removeAttribute("src"); v.load(); } catch (e) {} };
+
+    const captureFrame = () => {
+      try {
+        const c = document.createElement("canvas");
+        c.width = v.videoWidth || 320; c.height = v.videoHeight || 180;
+        const ctx = c.getContext("2d");
+        ctx.drawImage(v, 0, 0, c.width, c.height);
+        return { canvas: c, ctx };
+      } catch (e) { return null; }
+    };
+    // sparse-sampled average brightness; if it looks black, try a later frame
+    const looksBlack = (ctx, w, h) => {
+      try {
+        const { data } = ctx.getImageData(0, 0, w, h);
+        let sum = 0, n = 0;
+        for (let i = 0; i < data.length; i += 4 * 37) { sum += data[i] + data[i + 1] + data[i + 2]; n++; }
+        return n > 0 && sum / (n * 3) < 12;
+      } catch (e) { return false; } // tainted/cross-origin canvas — can't inspect, accept the frame
+    };
+
     const onLoaded = () => {
       const dur = (v.duration && isFinite(v.duration)) ? v.duration : 2;
-      const seekTo = Math.max(0.1, Math.min(1.5, dur * 0.15)); // ~15% in, capped
-      const onSeeked = () => {
-        try {
-          const c = document.createElement("canvas");
-          c.width = v.videoWidth || 320; c.height = v.videoHeight || 180;
-          c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
-          const data = c.toDataURL("image/jpeg", 0.7);
-          if (!cancelled) setPoster(data);
-        } catch (e) { if (!cancelled) setFailed(true); }
-        cleanup();
+      const candidates = [0.15, 0.35, 0.55, 0.8].map((f) => Math.max(0.1, Math.min(dur * f, Math.max(dur - 0.1, 0.1))));
+
+      const attempt = (i) => {
+        if (cancelled) return;
+        const onSeeked = () => {
+          if (cancelled) return;
+          const frame = captureFrame();
+          if (!frame) { setFailed(true); cleanup(); return; }
+          const black = looksBlack(frame.ctx, frame.canvas.width, frame.canvas.height);
+          if (black && i < candidates.length - 1) { attempt(i + 1); return; }
+          try { setPoster(frame.canvas.toDataURL("image/jpeg", 0.7)); }
+          catch (e) { setFailed(true); }
+          cleanup();
+        };
+        v.addEventListener("seeked", onSeeked, { once: true });
+        try { v.currentTime = candidates[i]; } catch (e) { if (!cancelled) setFailed(true); cleanup(); }
       };
-      v.addEventListener("seeked", onSeeked, { once: true });
-      try { v.currentTime = seekTo; } catch (e) { if (!cancelled) setFailed(true); cleanup(); }
+      attempt(0);
     };
     v.addEventListener("loadeddata", onLoaded, { once: true });
     v.addEventListener("error", () => { if (!cancelled) setFailed(true); }, { once: true });

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronRight, ChevronLeft, Maximize2, Eye, Plus, X, Save, Check, Trash2, Star, Link2, Camera, Heart, MessageCircle, Edit3, FolderInput } from "lucide-react";
+import { ChevronRight, ChevronLeft, Maximize2, Eye, Plus, X, Save, Check, Trash2, Star, Link2, Camera, Heart, MessageCircle, Edit3, FolderInput, Share2, Download } from "lucide-react";
 import { api } from "../api";
 import { formatJalali, toFa, jalaliToISO } from "../jalali";
 import JalaliInput from "./JalaliInput.jsx";
@@ -14,7 +14,7 @@ function fmtNum(n) {
   return toFa(v.toLocaleString("en-US"));
 }
 
-export default function WorkPage({ workId, projectId, admin, platforms, reloadMeta, types: typesProp = [], goBack, openWork, openProjectWithQuery }) {
+export default function WorkPage({ workId, projectId, admin, canEditEngagement = false, platforms, reloadMeta, types: typesProp = [], goBack, openWork, openProjectWithQuery }) {
   // fetch our own copy of the work-types list — self-contained, so this never
   // depends on whether/when the parent happened to pass a populated `types` prop
   const [ownTypes, setOwnTypes] = useState(typesProp);
@@ -39,6 +39,9 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
   const [tvFormTime, setTvFormTime] = useState("");
   const platformLogoRef = useRef(null);
   const [saved,       setSaved]       = useState(false); // visual feedback
+  const [shareOpen,   setShareOpen]   = useState(false);
+  const [shareBusy,   setShareBusy]   = useState(false);
+  const [shareMsg,    setShareMsg]    = useState("");
   const [notFound,    setNotFound]    = useState(false);
   const [axisList,    setAxisList]    = useState([]);
   const [campList,    setCampList]    = useState([]);
@@ -177,19 +180,27 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
 
   const save = async () => {
     try {
-      const res = await api.updateWork(work.id, {
-        title:      draft.title,
-        descr:      draft.descr,
-        axis:       draft.axis,
-        campaign:   draft.campaign,
-        event_date: draft.event_date,
-        type:       draft.type,
-        keywords:   draft.keywords,
-        featured:   draft.featured ? 1 : 0,
-        platformViews: draft.platformViews,
-        tv:         draft.tv || [],
-        media:      draft.media || [],
-      });
+      // full admin edit touches everything; the restricted "editor" role can only
+      // ever reach this button when canEditEngagement is true without admin, in
+      // which case only the social/TV numbers are sent — nothing else changes.
+      const res = admin
+        ? await api.updateWork(work.id, {
+            title:      draft.title,
+            descr:      draft.descr,
+            axis:       draft.axis,
+            campaign:   draft.campaign,
+            event_date: draft.event_date,
+            type:       draft.type,
+            keywords:   draft.keywords,
+            featured:   draft.featured ? 1 : 0,
+            platformViews: draft.platformViews,
+            tv:         draft.tv || [],
+            media:      draft.media || [],
+          })
+        : await api.updateWorkEngagement(work.id, {
+            platformViews: draft.platformViews,
+            tv:         draft.tv || [],
+          });
       const nw = normalize(res);
       setWork(nw);
       setDraft(JSON.parse(JSON.stringify(nw)));
@@ -200,6 +211,58 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
       setTimeout(() => setSaved(false), 2000);
     } catch (e) {
       alert("ذخیره ناموفق بود. اتصال به سرور را بررسی کن.");
+    }
+  };
+
+  /* ---- sharing: (1) the raw video link, (2) download the file to share manually,
+     (3) a no-login public page showing just this one work ---- */
+  const flashShare = (msg) => { setShareMsg(msg); setTimeout(() => setShareMsg(""), 2500); };
+
+  const primaryVideoUrl = () => {
+    const list = (work.media && work.media.length ? work.media : (work.url ? [{ url: work.url, kind: work.type }] : []))
+      .map((m) => ({ ...m, kind: mediaKind(m.url, m.kind) }))
+      .filter((m) => m.kind === "video");
+    return list[0]?.url || null;
+  };
+
+  const shareVideoLink = async () => {
+    const url = primaryVideoUrl();
+    if (!url) { flashShare("این اثر فایل ویدئویی ندارد."); return; }
+    const fullUrl = url.startsWith("http") ? url : window.location.origin + url;
+    try {
+      if (navigator.share) await navigator.share({ title: work.title, url: fullUrl });
+      else { await navigator.clipboard.writeText(fullUrl); flashShare("لینک ویدئو کپی شد ✓"); }
+    } catch (e) { /* کاربر از پنجرهٔ اشتراک‌گذاری انصراف داده — نیازی به خطا نیست */ }
+  };
+
+  const downloadVideo = async () => {
+    const url = primaryVideoUrl();
+    if (!url) { flashShare("این اثر فایل ویدئویی ندارد."); return; }
+    flashShare("در حال آماده‌سازی دانلود…");
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const ext = url.match(/\.\w+$/)?.[0] || ".mp4";
+      const a = document.createElement("a");
+      a.href = objUrl; a.download = (work.title || "video") + ext;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(objUrl), 5000);
+      flashShare("دانلود شروع شد ✓");
+    } catch (e) { flashShare("دانلود ناموفق بود."); }
+  };
+
+  const sharePageLink = async () => {
+    setShareBusy(true);
+    try {
+      const { token } = await api.getShareLink(work.id);
+      const fullUrl = `${window.location.origin}${window.location.pathname}?v=public&token=${token}`;
+      if (navigator.share) await navigator.share({ title: work.title, url: fullUrl });
+      else { await navigator.clipboard.writeText(fullUrl); flashShare("لینک صفحهٔ اثر کپی شد ✓"); }
+    } catch (e) {
+      flashShare("ساخت لینک ناموفق بود.");
+    } finally {
+      setShareBusy(false);
     }
   };
 
@@ -405,6 +468,26 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
               </button>
             )}
             {!admin && work.featured ? <span className="featured-badge"><Star size={13} fill="currentColor" /> اثر شاخص</span> : null}
+
+            <div className="share-menu">
+              <button className="btn light sm" onClick={() => setShareOpen((v) => !v)}>
+                <Share2 size={14} /> اشتراک‌گذاری
+              </button>
+              {shareOpen && (
+                <div className="share-dropdown" onMouseLeave={() => setShareOpen(false)}>
+                  <button onClick={() => { shareVideoLink(); setShareOpen(false); }}>
+                    <Link2 size={13} /> اشتراک لینک ویدئو
+                  </button>
+                  <button onClick={() => { downloadVideo(); setShareOpen(false); }}>
+                    <Download size={13} /> دانلود ویدئو
+                  </button>
+                  <button disabled={shareBusy} onClick={() => { sharePageLink(); setShareOpen(false); }}>
+                    <Share2 size={13} /> اشتراک صفحهٔ اثر (بدون نیاز به ورود)
+                  </button>
+                </div>
+              )}
+              {shareMsg && <span className="share-toast">{shareMsg}</span>}
+            </div>
           </div>
 
           {admin && (
@@ -503,7 +586,7 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
           {/* platform views — social networks only; TV networks have their own section below */}
           <div className="pv-block">
             <span className="info-k">بازدید / لایک / کامنت — شبکه‌های اجتماعی</span>
-            {admin ? (
+            {(admin || canEditEngagement) ? (
               <>
                 <div className="pv-list">
                   {platforms.filter((p) => p.type !== "tv").map((p) => {
@@ -518,11 +601,13 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
                             {p.logo_url
                               ? <img className="plat-logo" src={p.logo_url} alt="" />
                               : <span className="plat-logo ph">{p.label?.[0] || "?"}</span>}
-                            <label className="plat-logo-edit" title="تغییر لوگو" onClick={(e) => e.stopPropagation()}>
-                              <Camera size={11} />
-                              <input type="file" hidden accept="image/*"
-                                onChange={(e) => uploadPlatformLogo(p.id, e.target.files?.[0])} />
-                            </label>
+                            {admin && (
+                              <label className="plat-logo-edit" title="تغییر لوگو" onClick={(e) => e.stopPropagation()}>
+                                <Camera size={11} />
+                                <input type="file" hidden accept="image/*"
+                                  onChange={(e) => uploadPlatformLogo(p.id, e.target.files?.[0])} />
+                              </label>
+                            )}
                           </span>
                           {renamingId === p.id ? (
                             <input className="pv-rename-in" autoFocus value={renameVal}
@@ -550,47 +635,51 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
                             </label>
                           </div>
                         )}
-                        <div className="pv-card-tools">
-                          <button className="mini" title="تغییر نام" onClick={(e) => { e.stopPropagation(); setRenamingId(p.id); setRenameVal(p.label); }}>
-                            <Edit3 size={12} /> تغییر نام
-                          </button>
-                          <button className="mini danger" title="حذف پلتفرم"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              if (confirm(`پلتفرم «${p.label}» حذف شود؟ آمار ثبت‌شده برایش هم پاک می‌شود.`)) {
-                                await api.delPlatform(p.id);
-                                await reloadMeta();
-                              }
-                            }}>
-                            <Trash2 size={12} /> حذف
-                          </button>
-                        </div>
+                        {admin && (
+                          <div className="pv-card-tools">
+                            <button className="mini" title="تغییر نام" onClick={(e) => { e.stopPropagation(); setRenamingId(p.id); setRenameVal(p.label); }}>
+                              <Edit3 size={12} /> تغییر نام
+                            </button>
+                            <button className="mini danger" title="حذف پلتفرم"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (confirm(`پلتفرم «${p.label}» حذف شود؟ آمار ثبت‌شده برایش هم پاک می‌شود.`)) {
+                                  await api.delPlatform(p.id);
+                                  await reloadMeta();
+                                }
+                              }}>
+                              <Trash2 size={12} /> حذف
+                            </button>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
                 </div>
-                <div className="pv-add">
-                  <input placeholder="افزودن پلتفرم…" value={newPlatform}
-                    onChange={(e) => setNewPlatform(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && addPlatform()} />
-                  <div className="pv-type-pick">
-                    <label className={newPlatformType === "social" ? "on" : ""}>
-                      <input type="radio" name="newPlatformType" checked={newPlatformType === "social"}
-                        onChange={() => setNewPlatformType("social")} /> شبکهٔ اجتماعی
-                    </label>
-                    <label className={newPlatformType === "tv" ? "on" : ""}>
-                      <input type="radio" name="newPlatformType" checked={newPlatformType === "tv"}
-                        onChange={() => setNewPlatformType("tv")} /> تلویزیونی
-                    </label>
+                {admin && (
+                  <div className="pv-add">
+                    <input placeholder="افزودن پلتفرم…" value={newPlatform}
+                      onChange={(e) => setNewPlatform(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && addPlatform()} />
+                    <div className="pv-type-pick">
+                      <label className={newPlatformType === "social" ? "on" : ""}>
+                        <input type="radio" name="newPlatformType" checked={newPlatformType === "social"}
+                          onChange={() => setNewPlatformType("social")} /> شبکهٔ اجتماعی
+                      </label>
+                      <label className={newPlatformType === "tv" ? "on" : ""}>
+                        <input type="radio" name="newPlatformType" checked={newPlatformType === "tv"}
+                          onChange={() => setNewPlatformType("tv")} /> تلویزیونی
+                      </label>
+                    </div>
+                    <button className="mini" title="لوگوی پلتفرم جدید" onClick={() => platformLogoRef.current?.click()}>
+                      <Camera size={14} />
+                    </button>
+                    <input ref={platformLogoRef} type="file" hidden accept="image/*"
+                      onChange={(e) => setNewPlatformLogo(e.target.files?.[0] || null)} />
+                    <button className="mini" onClick={addPlatform}><Plus size={14} /></button>
                   </div>
-                  <button className="mini" title="لوگوی پلتفرم جدید" onClick={() => platformLogoRef.current?.click()}>
-                    <Camera size={14} />
-                  </button>
-                  <input ref={platformLogoRef} type="file" hidden accept="image/*"
-                    onChange={(e) => setNewPlatformLogo(e.target.files?.[0] || null)} />
-                  <button className="mini" onClick={addPlatform}><Plus size={14} /></button>
-                </div>
-                {newPlatformLogo && <span className="muted-sm">لوگو انتخاب شد: {newPlatformLogo.name}</span>}
+                )}
+                {admin && newPlatformLogo && <span className="muted-sm">لوگو انتخاب شد: {newPlatformLogo.name}</span>}
                 <div className="pv-totals">
                   <div className="pv-total-item">
                     <Eye size={16} className="cyan" />
@@ -646,10 +735,10 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
           </div>
 
           {/* TV broadcast conductor — networks have no views/likes/comments, only a schedule */}
-          {(admin || work.tv.length > 0) && (
+          {(admin || canEditEngagement || work.tv.length > 0) && (
             <div className="pv-block tv-block">
               <span className="info-k">کنداکتور پخش — شبکه‌های تلویزیونی</span>
-              {admin ? (
+              {(admin || canEditEngagement) ? (
                 <div className="pv-list">
                   {platforms.filter((p) => p.type === "tv").length === 0 && (
                     <p className="muted-sm">هنوز شبکه‌ای تعریف نشده — از فرم «افزودن پلتفرم» بالا با گزینهٔ «تلویزیونی» اضافه کن.</p>
@@ -664,11 +753,13 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
                             {p.logo_url
                               ? <img className="plat-logo" src={p.logo_url} alt="" />
                               : <span className="plat-logo ph">{p.label?.[0] || "?"}</span>}
-                            <label className="plat-logo-edit" title="تغییر لوگو" onClick={(e) => e.stopPropagation()}>
-                              <Camera size={11} />
-                              <input type="file" hidden accept="image/*"
-                                onChange={(e) => uploadPlatformLogo(p.id, e.target.files?.[0])} />
-                            </label>
+                            {admin && (
+                              <label className="plat-logo-edit" title="تغییر لوگو" onClick={(e) => e.stopPropagation()}>
+                                <Camera size={11} />
+                                <input type="file" hidden accept="image/*"
+                                  onChange={(e) => uploadPlatformLogo(p.id, e.target.files?.[0])} />
+                              </label>
+                            )}
                           </span>
                           {renamingId === p.id ? (
                             <input className="pv-rename-in" autoFocus value={renameVal}
@@ -714,17 +805,19 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
                           </button>
                         )}
 
-                        <div className="pv-card-tools">
-                          <button className="mini" title="تغییر نام" onClick={() => { setRenamingId(p.id); setRenameVal(p.label); }}>
-                            <Edit3 size={12} /> تغییر نام
-                          </button>
-                          <button className="mini danger" title="حذف شبکه"
-                            onClick={async () => {
-                              if (confirm(`شبکهٔ «${p.label}» حذف شود؟`)) { await api.delPlatform(p.id); await reloadMeta(); }
-                            }}>
-                            <Trash2 size={12} /> حذف
-                          </button>
-                        </div>
+                        {admin && (
+                          <div className="pv-card-tools">
+                            <button className="mini" title="تغییر نام" onClick={() => { setRenamingId(p.id); setRenameVal(p.label); }}>
+                              <Edit3 size={12} /> تغییر نام
+                            </button>
+                            <button className="mini danger" title="حذف شبکه"
+                              onClick={async () => {
+                                if (confirm(`شبکهٔ «${p.label}» حذف شود؟`)) { await api.delPlatform(p.id); await reloadMeta(); }
+                              }}>
+                              <Trash2 size={12} /> حذف
+                            </button>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -765,22 +858,26 @@ export default function WorkPage({ workId, projectId, admin, platforms, reloadMe
             </div>
           )}
 
-          {admin && (
+          {(admin || canEditEngagement) && (
             <div className="work-admin-actions">
               <button className={`btn ${saved ? "saved" : "gold"}`} onClick={save}>
                 {saved ? <><Check size={15} /> ذخیره شد!</> : <><Save size={15} /> ذخیرهٔ تغییرات</>}
               </button>
-              <button className="btn light" onClick={() => setCopyTarget(true)}>
-                <FolderInput size={15} /> کپی به فعالیت دیگر
-              </button>
-              <button className="btn ghost danger" onClick={async () => {
-                if (confirm("این اثر برای همیشه حذف شود؟")) {
-                  await api.delWork(work.id);
-                  goBack();
-                }
-              }}>
-                <Trash2 size={15} /> حذف اثر
-              </button>
+              {admin && (
+                <>
+                  <button className="btn light" onClick={() => setCopyTarget(true)}>
+                    <FolderInput size={15} /> کپی به فعالیت دیگر
+                  </button>
+                  <button className="btn ghost danger" onClick={async () => {
+                    if (confirm("این اثر برای همیشه حذف شود؟")) {
+                      await api.delWork(work.id);
+                      goBack();
+                    }
+                  }}>
+                    <Trash2 size={15} /> حذف اثر
+                  </button>
+                </>
+              )}
             </div>
           )}
         </aside>

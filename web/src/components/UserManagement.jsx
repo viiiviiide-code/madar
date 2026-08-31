@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { X, Plus, Trash2, UserPlus, Shield, Eye, Layers, Circle, ChevronDown, KeyRound } from "lucide-react";
+import { X, Plus, Trash2, UserPlus, Shield, Eye, Edit3, Layers, Circle, ChevronDown, KeyRound } from "lucide-react";
 import { api } from "../api";
 
 export default function UserManagement({ templates, onClose }) {
@@ -104,10 +104,15 @@ export default function UserManagement({ templates, onClose }) {
               onChange={() => setNewUser({ ...newUser, role: "viewer" })} /> نمایش
           </label>
           <label className="um-role-pick">
+            <input type="radio" name="newUserRole" checked={newUser.role === "editor"}
+              onChange={() => setNewUser({ ...newUser, role: "editor" })} /> ویرایشگر آمار
+          </label>
+          <label className="um-role-pick">
             <input type="radio" name="newUserRole" checked={newUser.role === "admin"}
               onChange={() => setNewUser({ ...newUser, role: "admin" })} /> مدیریت
           </label>
         </div>
+        <p className="muted-sm">«ویرایشگر آمار» فقط می‌تواند فیلدهای آماری صفحهٔ فعالیت و بازدید/لایک/کامنت و کنداکتور تلویزیونی هر اثر را وارد کند — نه چیز دیگری.</p>
         {error && <div className="login-error">{error}</div>}
         <div className="dp-actions">
           <button className="btn gold sm" onClick={addUser}><UserPlus size={14} /> افزودن کاربر</button>
@@ -121,16 +126,16 @@ export default function UserManagement({ templates, onClose }) {
       <div className="um-list">
         {users && users.map((u) => {
           const isViewer = u.role !== "admin";
+          const roleLabel = u.role === "admin" ? "مدیریت" : u.role === "editor" ? "ویرایشگر آمار" : "نمایش";
+          const RoleIcon = u.role === "admin" ? Shield : u.role === "editor" ? Edit3 : Eye;
           const open = expandedId === u.id;
           const restricted = (u.permissions || []).length > 0;
           return (
             <div key={u.id} className="um-user-card">
               <div className="um-user-row">
-                {isViewer
-                  ? <Eye size={15} className="sb-ic" />
-                  : <Shield size={15} className="sb-ic" style={{ color: "var(--gold)" }} />}
+                <RoleIcon size={15} className="sb-ic" style={u.role === "admin" ? { color: "var(--gold)" } : undefined} />
                 <span className="um-username">{u.username}</span>
-                <span className="pv-plabel-t um-role-badge">{isViewer ? "نمایش" : "مدیریت"}</span>
+                <span className="pv-plabel-t um-role-badge">{roleLabel}</span>
                 {isViewer && (
                   <span className={`um-scope-badge ${restricted ? "restricted" : "full"}`}>
                     {restricted ? "دسترسی محدود" : "دسترسی کامل"}

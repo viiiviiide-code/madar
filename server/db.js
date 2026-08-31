@@ -1,5 +1,6 @@
 const Database = require("better-sqlite3");
 const path = require("path");
+const fs = require("fs");
 const crypto = require("crypto");
 
 function hashPassword(password) {
@@ -17,7 +18,8 @@ function verifyPassword(password, stored) {
   return crypto.timingSafeEqual(a, b);
 }
 
-const DB_PATH = "/home/ubuntu/apps/madar/database/madar.db";
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, "madar.db");
+fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 const db = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
@@ -154,6 +156,7 @@ addCol("platforms", "logo_url", "TEXT");
 addCol("platforms", "type", "TEXT DEFAULT 'social'"); // 'social' | 'tv'
 addCol("templates", "theme", "TEXT DEFAULT 'orbit'");
 addCol("templates", "font", "TEXT DEFAULT 'Vazirmatn'");
+addCol("works", "share_token", "TEXT"); // set on demand: enables the no-login public work page
 
 /* one-time addition of "screenshot" / "link" work types (existing installs already seeded) */
 const typesV2 = db.prepare("SELECT value FROM settings WHERE key='types_v2_seeded'").get();

@@ -12,12 +12,18 @@ import FeaturedWorks from "./components/FeaturedWorks.jsx";
 import TemplateReport from "./components/TemplateReport.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import Login from "./components/Login.jsx";
+import PublicWorkPage from "./components/PublicWorkPage.jsx";
 
 // URL <-> view mapping, so refreshing the page (or sharing a link) keeps
 // the user on the same screen instead of always bouncing to "home".
 function viewFromLocation() {
   const qs = new URLSearchParams(window.location.search);
   const name = qs.get("v") || "home";
+  // no-login public share link: /?v=public&token=... — checked before anything
+  // else needs a logged-in session, so it must never fall through to Login.
+  if (name === "public" && qs.get("token")) {
+    return { name: "public-work", token: qs.get("token") };
+  }
   if (name === "project" && qs.get("id")) {
     return { name: "project", id: qs.get("id"), q: qs.get("q") || "" };
   }
@@ -83,6 +89,11 @@ export default function App() {
     try { return localStorage.getItem("madar_admin_view_mode") !== "0"; } catch { return true; }
   }); // فقط برای کاربر مدیریت: پیش‌نمایش به‌صورت حالت نمایش — بین رفرش‌ها حفظ می‌شود
   const admin = isAdminUser && adminView;
+  // restricted "content editor" role: can only fill in the two data-entry surfaces
+  // (an activity's stat fields, and a work's social/TV numbers) — nothing else.
+  const isEditorUser = user?.role === "editor";
+  const canEditStats = admin || isEditorUser;
+  const canEditEngagement = admin || isEditorUser;
   const toggleAdminView = () => {
     setAdminView((v) => {
       const next = !v;
@@ -177,6 +188,9 @@ export default function App() {
     if (view.name === "project" && String(view.id) === String(p.id)) go(viewForMode(mode));
     loadProjects(); loadTemplates();
   };
+
+  // public share link works with no session at all — checked before the login gate
+  if (view.name === "public-work") return <PublicWorkPage token={view.token} />;
 
   if (!user) return <Login onLogin={setUser} />;
   if (!settings) return <div className="app loading">در حال بارگذاری…</div>;
@@ -378,7 +392,7 @@ export default function App() {
 
         {view.name === "project" && (
           <ProjectPage
-            projectId={view.id} admin={admin}
+            projectId={view.id} admin={admin} canEditStats={canEditStats}
             initialQuery={view.q || ""}
             types={types} platforms={platforms} reloadMeta={loadMeta}
             templates={templates}
@@ -402,7 +416,7 @@ export default function App() {
 
         {view.name === "work" && (
           <WorkPage
-            workId={view.workId} projectId={view.id} admin={admin}
+            workId={view.workId} projectId={view.id} admin={admin} canEditEngagement={canEditEngagement}
             platforms={platforms} reloadMeta={loadMeta}
             goBack={() => go({ name: "project", id: view.id })}
             openWork={(workId) => go({ name: "work", id: view.id, workId })}

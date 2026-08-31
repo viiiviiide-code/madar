@@ -113,9 +113,13 @@ export const api = {
   work: (id) => get("/api/works/" + id),
   addWork: (w) => send("POST")("/api/works", w),
   updateWork: (id, w) => send("PUT")("/api/works/" + id, w),
+  updateWorkEngagement: (id, patch) => send("PUT")(`/api/works/${id}/engagement`, patch),
   delWork: (id) => del("/api/works/" + id),
   duplicateWork: (id, projectId, move) => send("POST")(`/api/works/${id}/duplicate`, { project_id: projectId, move: !!move }),
   similar: (id) => get(`/api/works/${id}/similar`),
+  getShareLink: (workId) => send("POST")(`/api/works/${workId}/share`, {}),
+  revokeShareLink: (workId) => del(`/api/works/${workId}/share`),
+  publicWork: (token) => fetch("/api/public/works/" + encodeURIComponent(token)).then(j),
 
   upload: (file) => {
     const fd = new FormData();
