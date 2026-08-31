@@ -641,6 +641,22 @@ function saveTvBroadcasts(workId, tv) {
   (tv || []).filter((t) => t && t.platform_id && t.date && t.time)
     .forEach((t) => ins.run(workId, t.platform_id, t.date, t.time));
 }
+/* the card thumbnail in the works list is driven by works.url — this must always
+   point at an actual image/video/audio file, never at a link, regardless of what
+   order the admin arranged the gallery in. a link has nothing to render as a thumb. */
+function guessMediaKind(url, kind) {
+  if (kind === "link") return "link";
+  const ext = String(url || "").toLowerCase().split(/[?#]/)[0].split(".").pop();
+  if (["mp4", "webm", "mov", "mkv", "avi", "m4v", "ogv"].includes(ext)) return "video";
+  if (["mp3", "wav", "ogg", "oga", "m4a", "aac", "flac", "opus"].includes(ext)) return "audio";
+  if (["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "avif"].includes(ext)) return "image";
+  return kind || "image";
+}
+function firstDisplayableMediaUrl(media) {
+  if (!Array.isArray(media)) return null;
+  const item = media.find((m) => m && m.url && guessMediaKind(m.url, m.kind) !== "link");
+  return item ? item.url : null;
+}
 function saveMedia(workId, media) {
   db.prepare("DELETE FROM work_media WHERE work_id=?").run(workId);
   const ins = db.prepare("INSERT INTO work_media (work_id,url,kind,sort_order) VALUES (?,?,?,?)");
@@ -651,8 +667,8 @@ function saveMedia(workId, media) {
 app.post("/api/works", requireAdmin, (req, res) => {
   const b = req.body;
   const tx = db.transaction(() => {
-    // primary url = explicit url, else first media item
-    const primaryUrl = b.url || (Array.isArray(b.media) && b.media[0] ? b.media[0].url : null);
+    // primary url = explicit url, else first *displayable* media item (never a link)
+    const primaryUrl = b.url || firstDisplayableMediaUrl(b.media);
     const r = db.prepare(
       `INSERT INTO works (project_id,type,title,descr,axis,campaign,event_date,url,featured,created_at)
        VALUES (?,?,?,?,?,?,?,?,?,?)`
@@ -674,10 +690,10 @@ app.put("/api/works/:id", requireAdmin, (req, res) => {
   if (!cur) return res.status(404).json({ error: "not found" });
   const b = { ...cur, ...req.body };
   const tx = db.transaction(() => {
-    // keep url in sync with first media item when media provided
+    // keep url in sync with the first displayable (non-link) media item when media provided
     let url = b.url;
     if ("media" in req.body) {
-      url = (Array.isArray(b.media) && b.media[0]) ? b.media[0].url : (b.url || null);
+      url = firstDisplayableMediaUrl(b.media) || b.url || null;
     }
     db.prepare(
       `UPDATE works SET type=?,title=?,descr=?,axis=?,campaign=?,event_date=?,url=?,featured=? WHERE id=?`
