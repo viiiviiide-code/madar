@@ -533,10 +533,20 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, ty
    many videos fade in from black, so a single fixed seek point often lands on
    a black frame — this tries a few points further into the clip until it
    finds one that isn't near-black, instead of settling for the first try. */
+
+// module-level cache: once a poster is computed for a URL, reuse it — this avoids
+// re-decoding the same video (and any brief flash while the real frame loads)
+// every time the works list remounts, e.g. after navigating back from a work's page.
+const posterCache = new Map();
+
 export function VideoThumb({ url, className }) {
-  const [poster, setPoster] = useState(null);
+  const [poster, setPoster] = useState(() => posterCache.get(url) || null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
+    const cached = posterCache.get(url);
+    if (cached) { setPoster(cached); return; }
+    setPoster(null);
+    setFailed(false);
     let cancelled = false;
     const v = document.createElement("video");
     v.muted = true; v.preload = "auto"; v.crossOrigin = "anonymous"; v.src = url;
@@ -573,8 +583,11 @@ export function VideoThumb({ url, className }) {
           if (!frame) { setFailed(true); cleanup(); return; }
           const black = looksBlack(frame.ctx, frame.canvas.width, frame.canvas.height);
           if (black && i < candidates.length - 1) { attempt(i + 1); return; }
-          try { setPoster(frame.canvas.toDataURL("image/jpeg", 0.7)); }
-          catch (e) { setFailed(true); }
+          try {
+            const data = frame.canvas.toDataURL("image/jpeg", 0.7);
+            posterCache.set(url, data);
+            setPoster(data);
+          } catch (e) { setFailed(true); }
           cleanup();
         };
         v.addEventListener("seeked", onSeeked, { once: true });
@@ -588,8 +601,14 @@ export function VideoThumb({ url, className }) {
   }, [url]);
 
   if (poster) return <img className={className} src={poster} alt="" />;
-  // fallback while capturing / if capture fails: show frame at ~1s
-  return <video className={className} src={url + "#t=1"} muted preload="metadata" playsInline />;
+  // while the real frame is still being captured (or if capture fails outright),
+  // show a neutral placeholder instead of a raw <video> tag — an unseeked video
+  // element renders black, which is exactly the flash this component exists to avoid.
+  return (
+    <div className={`${className} vt-placeholder`} style={{ background: gradFor(url) }}>
+      <Play size={18} strokeWidth={1.6} />
+    </div>
+  );
 }
 
 export function mediaKind(url, fallback) {
@@ -658,9 +677,12 @@ export function Media({ work, small, big }) {
 }
 
 export function gradFor(seed) {
+  // accepts a number (work id) or a string (e.g. a URL) — strings are hashed to a number first
+  const n = typeof seed === "number" ? seed
+    : String(seed).split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 100000, 7);
   const s = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5; return x - Math.floor(x); };
-  const h1 = Math.floor(s(seed) * 360);
-  const h2 = (h1 + 50 + Math.floor(s(seed * 3) * 60)) % 360;
+  const h1 = Math.floor(s(n) * 360);
+  const h2 = (h1 + 50 + Math.floor(s(n * 3) * 60)) % 360;
   return `linear-gradient(135deg, hsl(${h1} 55% 32%), hsl(${h2} 60% 22%))`;
 }
 

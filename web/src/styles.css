@@ -1504,3 +1504,9 @@ textarea.ed{min-height:70px;resize:vertical}
   display:flex;flex-direction:column;align-items:center;gap:10px;
   padding:60px 20px;color:var(--muted);text-align:center;
 }
+
+/* ---- video thumb placeholder (shown only while the real frame is still being captured) ---- */
+.vt-placeholder{
+  display:flex;align-items:center;justify-content:center;
+  color:rgba(255,255,255,.55);
+}
