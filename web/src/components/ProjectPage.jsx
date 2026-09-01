@@ -399,6 +399,7 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
           <CopyWorkModal
             work={copyWorkTarget}
             currentProjectId={project.id}
+            canMove={!locked || isOwner}
             onClose={() => setCopyWorkTarget(null)}
             onDone={() => { setCopyWorkTarget(null); setRefresh((x) => x + 1); }}
           />

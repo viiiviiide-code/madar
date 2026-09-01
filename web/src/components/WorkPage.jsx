@@ -905,6 +905,7 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
         <CopyWorkModal
           work={work}
           currentProjectId={projectId}
+          canMove={!locked || isOwner}
           onClose={() => setCopyTarget(false)}
           onDone={(result) => { setCopyTarget(false); if (result?.moved) goBack(); }}
         />

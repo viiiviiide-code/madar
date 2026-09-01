@@ -4,7 +4,7 @@ import { api } from "../api";
 
 // Two-step picker: choose a template (or "no template"), then choose one of its
 // activities, then copy (or move) the work into it. Self-contained — fetches its own data.
-export default function CopyWorkModal({ work, currentProjectId, onClose, onDone }) {
+export default function CopyWorkModal({ work, currentProjectId, canMove = true, onClose, onDone }) {
   const [templates, setTemplates] = useState(null);
   const [projects, setProjects] = useState(null);
   const [tplId, setTplId] = useState(undefined); // undefined = not chosen yet, "" = "no template"
@@ -62,10 +62,17 @@ export default function CopyWorkModal({ work, currentProjectId, onClose, onDone 
             <input type="radio" name="cwMode" checked={!move} onChange={() => setMove(false)} />
             <Copy size={13} /> کپی (نسخهٔ اصلی دست‌نخورده می‌ماند)
           </label>
-          <label className={move ? "on" : ""}>
-            <input type="radio" name="cwMode" checked={move} onChange={() => setMove(true)} />
-            <ArrowLeftRight size={13} /> انتقال (از اینجا حذف می‌شود)
-          </label>
+          {canMove ? (
+            <label className={move ? "on" : ""}>
+              <input type="radio" name="cwMode" checked={move} onChange={() => setMove(true)} />
+              <ArrowLeftRight size={13} /> انتقال (از اینجا حذف می‌شود)
+            </label>
+          ) : (
+            <label className="disabled" title="این تمپلیت قفل شده — فقط مالک آرشیو می‌تواند اثر را از اینجا حذف/منتقل کند">
+              <input type="radio" disabled />
+              <ArrowLeftRight size={13} /> انتقال (این تمپلیت قفل است، فقط کپی مجاز است)
+            </label>
+          )}
         </div>
 
         {loading && <p className="muted-sm">در حال بارگذاری…</p>}
