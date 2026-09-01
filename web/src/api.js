@@ -60,7 +60,7 @@ export const api = {
     send("PUT")("/api/account/password", { currentPassword, newPassword }),
 
   users: () => get("/api/users"),
-  addUser: (username, password, role) => send("POST")("/api/users", { username, password, role }),
+  addUser: (username, password, role, owner) => send("POST")("/api/users", { username, password, role, owner: !!owner }),
   updateUser: (id, patch) => send("PUT")("/api/users/" + id, patch),
   delUser: (id) => del("/api/users/" + id),
   userPermissions: (userId) => get(`/api/users/${userId}/permissions`),
@@ -87,6 +87,7 @@ export const api = {
   templates: () => get("/api/templates"),
   addTemplate: (t) => send("POST")("/api/templates", t),
   updateTemplate: (id, t) => send("PUT")("/api/templates/" + id, t),
+  toggleTemplateLock: (id, locked) => send("PUT")(`/api/templates/${id}/lock`, { locked }),
   delTemplate: (id) => del("/api/templates/" + id),
   featuredWorks: (templateId) => get("/api/templates/" + templateId + "/featured-works"),
   templateReport: (templateId) => get("/api/templates/" + templateId + "/report"),

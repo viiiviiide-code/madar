@@ -23,7 +23,7 @@ export const TEMPLATE_THEMES = [
 ];
 
 export default function Home({
-  settings, updateSetting, admin, mode, setMode,
+  settings, updateSetting, admin, isOwner, mode, setMode,
   templates, reloadTemplates, homeTool, setHomeTool, openProject, openSidebar, openReport,
   onProjectsChanged,
 }) {
@@ -304,7 +304,7 @@ export default function Home({
       )}
 
       {admin && homeTool === "users" && (
-        <UserManagement templates={templates} onClose={() => setHomeTool(null)} />
+        <UserManagement templates={templates} isOwner={isOwner} onClose={() => setHomeTool(null)} />
       )}
 
       {/* node editor */}

@@ -1510,3 +1510,17 @@ textarea.ed{min-height:70px;resize:vertical}
   display:flex;align-items:center;justify-content:center;
   color:rgba(255,255,255,.55);
 }
+
+/* ---- archive lock (templates) ---- */
+.sb-lock-badge{color:var(--gold);margin-inline-start:4px;flex-shrink:0}
+.sb-star.is-locked{color:var(--gold)}
+.lock-badge{
+  display:inline-flex;align-items:center;gap:5px;
+  color:var(--gold);background:rgba(216,178,90,.12);border:1px solid rgba(216,178,90,.3);
+  border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;
+}
+.um-owner-pick{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px;color:var(--muted)}
+.um-owner-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  color:var(--gold);background:rgba(216,178,90,.12);border:1px solid rgba(216,178,90,.3);
+}

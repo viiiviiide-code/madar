@@ -44,13 +44,24 @@ function getToken(req) {
 function requireAuth(req, res, next) {
   const payload = verify(getToken(req));
   if (!payload) return res.status(401).json({ error: "ورود لازم است" });
-  req.user = payload; // { id, username, role }
+  req.user = payload; // { id, username, role, owner }
   next();
 }
 
 function requireAdmin(req, res, next) {
   if (!req.user || req.user.role !== "admin") {
     return res.status(403).json({ error: "فقط کاربر مدیریت اجازهٔ این عملیات را دارد" });
+  }
+  next();
+}
+
+// the "archive owner" flag — orthogonal to role. an admin who isn't the owner can
+// still do everything a normal admin does, EXCEPT touch a template someone has
+// locked (see isTemplateLocked in server.js). only used to gate the lock toggle
+// itself; the per-action lock checks live next to the routes they protect.
+function requireOwner(req, res, next) {
+  if (!req.user || req.user.role !== "admin" || !req.user.owner) {
+    return res.status(403).json({ error: "فقط مالک آرشیو اجازهٔ این عملیات را دارد" });
   }
   next();
 }
@@ -65,4 +76,4 @@ function requireEditor(req, res, next) {
   next();
 }
 
-module.exports = { sign, verify, requireAuth, requireAdmin, requireEditor };
+module.exports = { sign, verify, requireAuth, requireAdmin, requireOwner, requireEditor };

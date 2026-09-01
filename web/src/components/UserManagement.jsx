@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { X, Plus, Trash2, UserPlus, Shield, Eye, Edit3, Layers, Circle, ChevronDown, KeyRound } from "lucide-react";
+import { X, Plus, Trash2, UserPlus, Shield, Eye, Edit3, Layers, Circle, ChevronDown, KeyRound, Lock } from "lucide-react";
 import { api } from "../api";
 
-export default function UserManagement({ templates, onClose }) {
+export default function UserManagement({ templates, isOwner = false, onClose }) {
   const [users, setUsers] = useState(null);
   const [projects, setProjects] = useState([]);
-  const [newUser, setNewUser] = useState({ username: "", password: "", role: "viewer" });
+  const [newUser, setNewUser] = useState({ username: "", password: "", role: "viewer", owner: false });
   const [error, setError] = useState("");
   const [expandedId, setExpandedId] = useState(null);
   const [pwTarget, setPwTarget] = useState(null);
@@ -31,8 +31,8 @@ export default function UserManagement({ templates, onClose }) {
       return;
     }
     try {
-      await api.addUser(newUser.username.trim(), newUser.password, newUser.role);
-      setNewUser({ username: "", password: "", role: "viewer" });
+      await api.addUser(newUser.username.trim(), newUser.password, newUser.role, isOwner ? newUser.owner : false);
+      setNewUser({ username: "", password: "", role: "viewer", owner: false });
       await reload();
     } catch (e) {
       setError(e.message || "افزودن کاربر ناموفق بود.");
@@ -113,6 +113,13 @@ export default function UserManagement({ templates, onClose }) {
           </label>
         </div>
         <p className="muted-sm">«ویرایشگر آمار» فقط می‌تواند فیلدهای آماری صفحهٔ فعالیت و بازدید/لایک/کامنت و کنداکتور تلویزیونی هر اثر را وارد کند — نه چیز دیگری.</p>
+        {isOwner && newUser.role === "admin" && (
+          <label className="um-role-pick um-owner-pick">
+            <input type="checkbox" checked={newUser.owner}
+              onChange={(e) => setNewUser({ ...newUser, owner: e.target.checked })} />
+            مالک آرشیو (می‌تواند تمپلیت قفل‌شده را هم ویرایش/حذف کند و خودش تمپلیت قفل کند)
+          </label>
+        )}
         {error && <div className="login-error">{error}</div>}
         <div className="dp-actions">
           <button className="btn gold sm" onClick={addUser}><UserPlus size={14} /> افزودن کاربر</button>
@@ -136,6 +143,17 @@ export default function UserManagement({ templates, onClose }) {
                 <RoleIcon size={15} className="sb-ic" style={u.role === "admin" ? { color: "var(--gold)" } : undefined} />
                 <span className="um-username">{u.username}</span>
                 <span className="pv-plabel-t um-role-badge">{roleLabel}</span>
+                {!!u.owner && <span className="um-role-badge um-owner-badge" title="مالک آرشیو"><Lock size={11} /> مالک آرشیو</span>}
+                {isOwner && u.role === "admin" && (
+                  <button className={`mini ${u.owner ? "" : "ghost"}`}
+                    title={u.owner ? "لغو مالکیت آرشیو از این کاربر" : "این کاربر را مالک آرشیو کن"}
+                    onClick={async () => {
+                      try { await api.updateUser(u.id, { owner: !u.owner }); await reload(); }
+                      catch (e) { alert(e.message || "تغییر ناموفق بود."); }
+                    }}>
+                    {u.owner ? "لغو مالکیت" : "تبدیل به مالک"}
+                  </button>
+                )}
                 {isViewer && (
                   <span className={`um-scope-badge ${restricted ? "restricted" : "full"}`}>
                     {restricted ? "دسترسی محدود" : "دسترسی کامل"}

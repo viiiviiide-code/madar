@@ -157,6 +157,10 @@ addCol("platforms", "type", "TEXT DEFAULT 'social'"); // 'social' | 'tv'
 addCol("templates", "theme", "TEXT DEFAULT 'orbit'");
 addCol("templates", "font", "TEXT DEFAULT 'Vazirmatn'");
 addCol("works", "share_token", "TEXT"); // set on demand: enables the no-login public work page
+addCol("templates", "locked", "INTEGER DEFAULT 0"); // archive-lock: blocks edit/delete for anyone but an owner
+addCol("users", "owner", "INTEGER DEFAULT 0"); // "archive owner" — the only account that can touch a locked template
+addCol("works", "copied_from_work_id", "INTEGER"); // set when a work was created via "copy to another activity" —
+// lets engagement numbers entered on the copy also roll up onto the original archive work
 
 /* one-time addition of "screenshot" / "link" work types (existing installs already seeded) */
 const typesV2 = db.prepare("SELECT value FROM settings WHERE key='types_v2_seeded'").get();
@@ -171,12 +175,21 @@ if (!typesV2) {
 const usersExist = db.prepare("SELECT COUNT(*) c FROM users").get().c;
 if (!usersExist) {
   const insUser = db.prepare(
-    "INSERT INTO users (username,password_hash,role,created_at) VALUES (?,?,?,?)"
+    "INSERT INTO users (username,password_hash,role,created_at,owner) VALUES (?,?,?,?,?)"
   );
   const now = new Date().toISOString();
-  insUser.run("admin", hashPassword("admin12345"), "admin", now);
-  insUser.run("user", hashPassword("user12345"), "viewer", now);
+  insUser.run("admin", hashPassword("admin12345"), "admin", now, 1);
+  insUser.run("user", hashPassword("user12345"), "viewer", now, 0);
   console.log("Default users created — admin/admin12345 (مدیریت) و user/user12345 (نمایش). لطفاً پس از اولین ورود رمزها را تغییر دهید.");
+}
+
+/* if, for any reason, no account is marked as the archive owner (e.g. an existing
+   install upgrading to this feature for the first time), promote the earliest admin
+   account automatically so locked templates always have someone able to manage them */
+const ownerExists = db.prepare("SELECT COUNT(*) c FROM users WHERE owner=1").get().c;
+if (!ownerExists) {
+  const firstAdmin = db.prepare("SELECT id FROM users WHERE role='admin' ORDER BY id LIMIT 1").get();
+  if (firstAdmin) db.prepare("UPDATE users SET owner=1 WHERE id=?").run(firstAdmin.id);
 }
 
 /* ---------- seed once ---------- */

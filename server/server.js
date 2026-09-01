@@ -21,7 +21,7 @@ const crypto = require("crypto");
 })();
 
 const db = require("./db");
-const { sign, requireAuth, requireAdmin, requireEditor } = require("./auth");
+const { sign, requireAuth, requireAdmin, requireOwner, requireEditor } = require("./auth");
 
 const app = express();
 app.use(cors());
@@ -34,8 +34,8 @@ app.post("/api/login", (req, res) => {
   if (!u || !db.verifyPassword(password, u.password_hash)) {
     return res.status(401).json({ error: "نام کاربری یا رمز عبور اشتباه است" });
   }
-  const token = sign({ id: u.id, username: u.username, role: u.role });
-  res.json({ token, username: u.username, role: u.role });
+  const token = sign({ id: u.id, username: u.username, role: u.role, owner: !!u.owner });
+  res.json({ token, username: u.username, role: u.role, owner: !!u.owner });
 });
 
 /* ---------- public, no-login work page (share link) ---------- */
@@ -67,7 +67,7 @@ app.put("/api/account/password", (req, res) => {
 
 /* ---------- user management (admin only) ---------- */
 app.get("/api/users", requireAdmin, (req, res) => {
-  const users = db.prepare("SELECT id,username,role,created_at FROM users ORDER BY id").all();
+  const users = db.prepare("SELECT id,username,role,owner,created_at FROM users ORDER BY id").all();
   const perms = db.prepare(
     `SELECT up.id, up.user_id, up.template_id, up.project_id,
             t.label AS template_label, pr.title AS project_title
@@ -78,27 +78,38 @@ app.get("/api/users", requireAdmin, (req, res) => {
   res.json(users.map((u) => ({ ...u, permissions: perms.filter((x) => x.user_id === u.id) })));
 });
 app.post("/api/users", requireAdmin, (req, res) => {
-  const { username, password, role } = req.body || {};
+  const { username, password, role, owner } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: "نام کاربری و رمز لازم است" });
   if (String(password).length < 6) return res.status(400).json({ error: "رمز باید حداقل ۶ کاراکتر باشد" });
   if (db.prepare("SELECT id FROM users WHERE username=?").get(username)) {
     return res.status(400).json({ error: "این نام کاربری قبلاً استفاده شده" });
   }
   const finalRole = role === "admin" ? "admin" : role === "editor" ? "editor" : "viewer";
-  const r = db.prepare("INSERT INTO users (username,password_hash,role,created_at) VALUES (?,?,?,?)")
-    .run(username, db.hashPassword(password), finalRole, new Date().toISOString());
-  res.json({ id: r.lastInsertRowid, username, role: finalRole });
+  // only an existing owner can mint another one, and only for an admin-role account
+  const grantOwner = finalRole === "admin" && !!owner && isOwnerReq(req);
+  const r = db.prepare("INSERT INTO users (username,password_hash,role,created_at,owner) VALUES (?,?,?,?,?)")
+    .run(username, db.hashPassword(password), finalRole, new Date().toISOString(), grantOwner ? 1 : 0);
+  res.json({ id: r.lastInsertRowid, username, role: finalRole, owner: grantOwner });
 });
 app.put("/api/users/:id", requireAdmin, (req, res) => {
   const u = db.prepare("SELECT * FROM users WHERE id=?").get(req.params.id);
   if (!u) return res.status(404).json({ error: "not found" });
-  const { password, role } = req.body || {};
+  const { password, role, owner } = req.body || {};
   if (password) {
     if (String(password).length < 6) return res.status(400).json({ error: "رمز باید حداقل ۶ کاراکتر باشد" });
     db.prepare("UPDATE users SET password_hash=? WHERE id=?").run(db.hashPassword(password), u.id);
   }
   if (role === "admin" || role === "viewer" || role === "editor") {
     db.prepare("UPDATE users SET role=? WHERE id=?").run(role, u.id);
+  }
+  // owner status can only be granted or revoked by an existing owner, and at least
+  // one owner must always remain so locked archives never end up unmanageable.
+  if (typeof owner === "boolean" && isOwnerReq(req)) {
+    if (!owner && u.owner) {
+      const ownerCount = db.prepare("SELECT COUNT(*) c FROM users WHERE owner=1").get().c;
+      if (ownerCount <= 1) return res.status(400).json({ error: "باید حداقل یک مالک آرشیو باقی بماند" });
+    }
+    db.prepare("UPDATE users SET owner=? WHERE id=?").run(owner ? 1 : 0, u.id);
   }
   res.json({ ok: true });
 });
@@ -199,6 +210,31 @@ function canSeeProject(req, projectId) {
   return permittedProjectIds(req.user.id).has(Number(projectId));
 }
 
+/* ---------- archive lock ---------- */
+// a locked template can only be modified/deleted by the archive owner. everyone
+// else (including other "admin" accounts) can still see it and copy works OUT of
+// it, but can't touch anything inside it. lock is intentionally a template-wide
+// switch, not per-activity — it's meant to protect a whole archive at once.
+function isTemplateLockedForProject(projectId) {
+  const row = db.prepare(
+    `SELECT t.locked AS locked FROM projects p JOIN templates t ON t.id = p.template_id WHERE p.id = ?`
+  ).get(projectId);
+  return !!(row && row.locked);
+}
+function isOwnerReq(req) {
+  return !!(req.user && req.user.role === "admin" && req.user.owner);
+}
+// returns true and lets the caller continue; on failure, sends the 403 itself and
+// returns false so the route can just `if (!requireProjectUnlocked(...)) return;`
+function requireProjectUnlocked(req, res, projectId) {
+  if (isOwnerReq(req)) return true;
+  if (isTemplateLockedForProject(projectId)) {
+    res.status(403).json({ error: "این تمپلیت توسط مالک آرشیو قفل شده — فقط می‌توانی اثر را کپی کنی، نه ویرایش یا حذف." });
+    return false;
+  }
+  return true;
+}
+
 /* ---------- helpers ---------- */
 const totalViews = (workId) =>
   db.prepare("SELECT COALESCE(SUM(views),0) t FROM work_platform_views WHERE work_id=?")
@@ -233,8 +269,13 @@ const mediaOf = (workId) =>
 
 function hydrateWork(w) {
   if (!w) return w;
+  const copiedFrom = w.copied_from_work_id
+    ? db.prepare("SELECT id, title FROM works WHERE id=?").get(w.copied_from_work_id)
+    : null;
   return {
     ...w,
+    templateLocked: isTemplateLockedForProject(w.project_id),
+    copiedFrom: copiedFrom ? { id: copiedFrom.id, title: copiedFrom.title } : null,
     keywords: keywordsOf(w.id),
     platformViews: platformViewsOf(w.id),
     totalViews: totalViews(w.id),
@@ -249,7 +290,8 @@ function hydrateProject(p) {
   if (!p) return p;
   const stats = db.prepare("SELECT * FROM stats WHERE project_id=? ORDER BY sort_order").all(p.id);
   const works = db.prepare("SELECT * FROM works WHERE project_id=? ORDER BY datetime(created_at) DESC").all(p.id);
-  return { ...p, stats, works: works.map(hydrateWork) };
+  const tpl = p.template_id ? db.prepare("SELECT locked FROM templates WHERE id=?").get(p.template_id) : null;
+  return { ...p, templateLocked: !!(tpl && tpl.locked), stats, works: works.map(hydrateWork) };
 }
 
 /* ---------- settings ---------- */
@@ -362,12 +404,30 @@ app.post("/api/templates", requireAdmin, (req, res) => {
 app.put("/api/templates/:id", requireAdmin, (req, res) => {
   const cur = db.prepare("SELECT * FROM templates WHERE id=?").get(req.params.id);
   if (!cur) return res.status(404).json({ error: "not found" });
+  if (cur.locked && !isOwnerReq(req)) {
+    return res.status(403).json({ error: "این تمپلیت قفل شده — فقط مالک آرشیو می‌تواند ویرایشش کند." });
+  }
   const b = { ...cur, ...req.body };
   db.prepare("UPDATE templates SET label=?, from_date=?, to_date=?, sort_order=?, theme=?, font=? WHERE id=?")
     .run(b.label, b.from_date, b.to_date, b.sort_order, b.theme || "orbit", b.font || "Vazirmatn", req.params.id);
   res.json(db.prepare("SELECT * FROM templates WHERE id=?").get(req.params.id));
 });
+// lock/unlock — a switch only the archive owner can flip. everyone else keeps
+// full read access and can still duplicate works out of a locked template; they
+// just can't add/edit/delete anything inside it (enforced at each route above).
+app.put("/api/templates/:id/lock", requireOwner, (req, res) => {
+  const cur = db.prepare("SELECT * FROM templates WHERE id=?").get(req.params.id);
+  if (!cur) return res.status(404).json({ error: "not found" });
+  const locked = !!req.body.locked;
+  db.prepare("UPDATE templates SET locked=? WHERE id=?").run(locked ? 1 : 0, req.params.id);
+  res.json({ id: Number(req.params.id), locked });
+});
 app.delete("/api/templates/:id", requireAdmin, (req, res) => {
+  const cur = db.prepare("SELECT * FROM templates WHERE id=?").get(req.params.id);
+  if (!cur) return res.status(404).json({ error: "not found" });
+  if (cur.locked && !isOwnerReq(req)) {
+    return res.status(403).json({ error: "این تمپلیت قفل شده — فقط مالک آرشیو می‌تواند حذفش کند." });
+  }
   db.prepare("UPDATE projects SET template_id=NULL WHERE template_id=?").run(req.params.id);
   db.prepare("DELETE FROM templates WHERE id=?").run(req.params.id);
   res.json({ ok: true });
@@ -415,6 +475,12 @@ app.get("/api/projects/:id", (req, res) => {
 
 app.post("/api/projects", requireAdmin, (req, res) => {
   const b = req.body;
+  if (b.template_id) {
+    const tpl = db.prepare("SELECT locked FROM templates WHERE id=?").get(b.template_id);
+    if (tpl && tpl.locked && !isOwnerReq(req)) {
+      return res.status(403).json({ error: "این تمپلیت قفل شده — فقط مالک آرشیو می‌تواند فعالیت جدید در آن بسازد." });
+    }
+  }
   const r = db.prepare(
     `INSERT INTO projects (title,sub,start_date,end_date,teaser_url,node_x,node_y,node_size,node_font,node_bold,orbit,template_id,created_at)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
@@ -429,6 +495,7 @@ app.post("/api/projects", requireAdmin, (req, res) => {
 app.put("/api/projects/:id", requireAdmin, (req, res) => {
   const cur = db.prepare("SELECT * FROM projects WHERE id=?").get(req.params.id);
   if (!cur) return res.status(404).json({ error: "not found" });
+  if (!requireProjectUnlocked(req, res, cur.id)) return;
   const b = { ...cur, ...req.body };
   db.prepare(
     `UPDATE projects SET title=?,sub=?,start_date=?,end_date=?,teaser_url=?,node_x=?,node_y=?,node_size=?,node_font=?,node_bold=?,orbit=?,template_id=? WHERE id=?`
@@ -437,6 +504,9 @@ app.put("/api/projects/:id", requireAdmin, (req, res) => {
 });
 
 app.delete("/api/projects/:id", requireAdmin, (req, res) => {
+  const cur = db.prepare("SELECT * FROM projects WHERE id=?").get(req.params.id);
+  if (!cur) return res.status(404).json({ error: "not found" });
+  if (!requireProjectUnlocked(req, res, cur.id)) return;
   db.prepare("DELETE FROM projects WHERE id=?").run(req.params.id);
   res.json({ ok: true });
 });
@@ -495,6 +565,7 @@ app.post("/api/projects/:id/duplicate", requireAdmin, (req, res) => {
 // to whatever templates/activities that person was actually granted.
 app.put("/api/projects/:id/stats", requireEditor, (req, res) => {
   if (!canSeeProject(req, req.params.id)) return res.status(403).json({ error: "دسترسی نداری" });
+  if (!requireProjectUnlocked(req, res, req.params.id)) return;
   const pid = req.params.id;
   const items = req.body.stats || [];
   const tx = db.transaction(() => {
@@ -641,6 +712,21 @@ function saveTvBroadcasts(workId, tv) {
   (tv || []).filter((t) => t && t.platform_id && t.date && t.time)
     .forEach((t) => ins.run(workId, t.platform_id, t.date, t.time));
 }
+// when engagement is entered on a work that was copied out of another (e.g. a
+// non-owner admin's copy of a locked archive's work), mirror the same numbers
+// onto the original — so the archive itself stays up to date with real reach,
+// without needing the archive owner to enter it a second time.
+// note: this is a full mirror, not an aggregate — if the same source has been
+// copied into more than one place, whichever copy was saved last "wins" on the
+// source. Fine for the common case of one destination per source.
+function propagateEngagementToSource(workId, platformViews, tv) {
+  const w = db.prepare("SELECT copied_from_work_id FROM works WHERE id=?").get(workId);
+  if (!w || !w.copied_from_work_id) return;
+  const src = db.prepare("SELECT id FROM works WHERE id=?").get(w.copied_from_work_id);
+  if (!src) return; // original was since deleted — nothing to sync to
+  if (platformViews !== undefined) savePlatformViews(src.id, platformViews);
+  if (tv !== undefined) saveTvBroadcasts(src.id, tv);
+}
 /* the card thumbnail in the works list is driven by works.url — this must always
    point at an actual image/video/audio file, never at a link, regardless of what
    order the admin arranged the gallery in. a link has nothing to render as a thumb. */
@@ -666,6 +752,7 @@ function saveMedia(workId, media) {
 
 app.post("/api/works", requireAdmin, (req, res) => {
   const b = req.body;
+  if (!requireProjectUnlocked(req, res, b.project_id)) return;
   const tx = db.transaction(() => {
     // primary url = explicit url, else first *displayable* media item (never a link)
     const primaryUrl = b.url || firstDisplayableMediaUrl(b.media);
@@ -688,6 +775,7 @@ app.post("/api/works", requireAdmin, (req, res) => {
 app.put("/api/works/:id", requireAdmin, (req, res) => {
   const cur = db.prepare("SELECT * FROM works WHERE id=?").get(req.params.id);
   if (!cur) return res.status(404).json({ error: "not found" });
+  if (!requireProjectUnlocked(req, res, cur.project_id)) return;
   const b = { ...cur, ...req.body };
   const tx = db.transaction(() => {
     // keep url in sync with the first displayable (non-link) media item when media provided
@@ -704,10 +792,18 @@ app.put("/api/works/:id", requireAdmin, (req, res) => {
     if ("media" in req.body) saveMedia(req.params.id, b.media);
   });
   tx();
+  propagateEngagementToSource(
+    req.params.id,
+    ("platformViews" in req.body) ? b.platformViews : undefined,
+    ("tv" in req.body) ? b.tv : undefined
+  );
   res.json(hydrateWork(db.prepare("SELECT * FROM works WHERE id=?").get(req.params.id)));
 });
 
 app.delete("/api/works/:id", requireAdmin, (req, res) => {
+  const cur = db.prepare("SELECT * FROM works WHERE id=?").get(req.params.id);
+  if (!cur) return res.status(404).json({ error: "not found" });
+  if (!requireProjectUnlocked(req, res, cur.project_id)) return;
   db.prepare("DELETE FROM works WHERE id=?").run(req.params.id);
   res.json({ ok: true });
 });
@@ -719,12 +815,14 @@ app.put("/api/works/:id/engagement", requireEditor, (req, res) => {
   const cur = db.prepare("SELECT * FROM works WHERE id=?").get(req.params.id);
   if (!cur) return res.status(404).json({ error: "not found" });
   if (!canSeeProject(req, cur.project_id)) return res.status(403).json({ error: "دسترسی نداری" });
+  if (!requireProjectUnlocked(req, res, cur.project_id)) return;
   const b = req.body || {};
   const tx = db.transaction(() => {
     if ("platformViews" in b) savePlatformViews(req.params.id, b.platformViews);
     if ("tv" in b) saveTvBroadcasts(req.params.id, b.tv);
   });
   tx();
+  propagateEngagementToSource(req.params.id, b.platformViews, b.tv);
   res.json(hydrateWork(db.prepare("SELECT * FROM works WHERE id=?").get(req.params.id)));
 });
 
@@ -759,6 +857,11 @@ app.post("/api/works/:id/duplicate", requireAdmin, (req, res) => {
   const targetProject = db.prepare("SELECT id FROM projects WHERE id=?").get(targetProjectId);
   if (!targetProject) return res.status(400).json({ error: "فعالیت مقصد پیدا نشد" });
 
+  // copying OUT of a locked template is always allowed (that's the whole point of
+  // being able to reuse archived material) — but "move" deletes the source, which
+  // is exactly what a lock exists to prevent. force a plain copy in that case.
+  if (move && !requireProjectUnlocked(req, res, src.project_id)) return;
+
   // block re-copying the same work into an activity it's already in (by title) —
   // unless it was since removed from there. Doesn't apply when moving OUT of that
   // same activity (there's nothing to collide with) or moving the work onto itself.
@@ -774,9 +877,10 @@ app.post("/api/works/:id/duplicate", requireAdmin, (req, res) => {
   const newId = db.transaction(() => {
     const now = new Date().toISOString();
     const r = db.prepare(
-      `INSERT INTO works (project_id,type,title,descr,axis,campaign,event_date,url,featured,created_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`
-    ).run(targetProjectId, src.type, src.title, src.descr, src.axis, src.campaign, src.event_date, src.url, src.featured, now);
+      `INSERT INTO works (project_id,type,title,descr,axis,campaign,event_date,url,featured,created_at,copied_from_work_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+    ).run(targetProjectId, src.type, src.title, src.descr, src.axis, src.campaign, src.event_date, src.url, src.featured, now,
+      move ? null : src.id); // only a real copy links back — a moved work has no separate "original" to sync to
     const wid = r.lastInsertRowid;
     const insKw = db.prepare("INSERT INTO work_keywords (work_id,text) VALUES (?,?)");
     keywordsOf(src.id).forEach((k) => insKw.run(wid, k));

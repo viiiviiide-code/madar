@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronRight, ChevronLeft, Maximize2, Eye, Plus, X, Save, Check, Trash2, Star, Link2, Camera, Heart, MessageCircle, Edit3, FolderInput, Share2, Download } from "lucide-react";
+import { ChevronRight, ChevronLeft, Maximize2, Eye, Plus, X, Save, Check, Trash2, Star, Link2, Camera, Heart, MessageCircle, Edit3, FolderInput, Share2, Download, Lock } from "lucide-react";
 import { api } from "../api";
 import { formatJalali, toFa, jalaliToISO } from "../jalali";
 import JalaliInput from "./JalaliInput.jsx";
@@ -14,7 +14,7 @@ function fmtNum(n) {
   return toFa(v.toLocaleString("en-US"));
 }
 
-export default function WorkPage({ workId, projectId, admin, canEditEngagement = false, platforms, reloadMeta, types: typesProp = [], goBack, openWork, openProjectWithQuery }) {
+export default function WorkPage({ workId, projectId, admin, canEditEngagement = false, isOwner = false, platforms, reloadMeta, types: typesProp = [], goBack, openWork, openProjectWithQuery }) {
   // fetch our own copy of the work-types list — self-contained, so this never
   // depends on whether/when the parent happened to pass a populated `types` prop
   const [ownTypes, setOwnTypes] = useState(typesProp);
@@ -114,6 +114,17 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
     </div>
   );
   if (!work || !draft) return <div className="page muted">در حال بارگذاری…</div>;
+
+  // same logic as ProjectPage: a locked template can only be structurally edited
+  // or deleted by the archive owner. copying it out (below) stays available to
+  // everyone regardless — that's the one action the lock is designed to allow.
+  const locked = !!work.templateLocked;
+  const canManage = admin && (!locked || isOwner);
+  // engagement (platform views / TV schedule) follows the same lock rule as
+  // everything else: the "editor" role or a plain admin can fill it in, but not
+  // on a locked template unless they're the owner — copy it out and enter it
+  // there instead, and it'll sync back automatically (see propagateEngagementToSource).
+  const canTouchEngagement = (admin || canEditEngagement) && (!locked || isOwner);
 
   const goFullscreen = () => {
     const el = stageRef.current;
@@ -411,7 +422,7 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
           )}
 
           {/* admin: manage gallery files */}
-          {admin && (
+          {canManage && (
             <div className="gallery-admin">
               <div className="ga-head">
                 <span className="info-k">فایل‌های اثر (گالری)</span>
@@ -459,15 +470,20 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
         {/* info aside */}
         <aside className="work-info">
           <div className="wi-top">
-            {!admin && <span className="chip">{String(work.type || "").split(",").filter(Boolean).join("، ")}</span>}
-            {admin && (
+            {!canManage && <span className="chip">{String(work.type || "").split(",").filter(Boolean).join("، ")}</span>}
+            {canManage && (
               <button className={`card-star ${draft.featured ? "on" : ""}`}
                 title={draft.featured ? "حذف از آثار شاخص" : "علامت‌گذاری به‌عنوان اثر شاخص"}
                 onClick={() => setDraft({ ...draft, featured: draft.featured ? 0 : 1 })}>
                 <Star size={15} fill={draft.featured ? "currentColor" : "none"} /> اثر شاخص
               </button>
             )}
-            {!admin && work.featured ? <span className="featured-badge"><Star size={13} fill="currentColor" /> اثر شاخص</span> : null}
+            {!canManage && work.featured ? <span className="featured-badge"><Star size={13} fill="currentColor" /> اثر شاخص</span> : null}
+            {locked && !isOwner && (
+              <span className="lock-badge" title="این تمپلیت توسط مالک آرشیو قفل شده — فقط می‌توانی کپی بگیری">
+                <Lock size={13} /> قفل‌شده
+              </span>
+            )}
 
             <div className="share-menu">
               <button className="btn light sm" onClick={() => setShareOpen((v) => !v)}>
@@ -490,7 +506,7 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
             </div>
           </div>
 
-          {admin && (
+          {canManage && (
             <div className="wi-type-edit">
               <span className="info-k">نوع اثر</span>
               <div className="type-multi">
@@ -515,13 +531,13 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
             </div>
           )}
 
-          {admin
+          {canManage
             ? <input className="ed h1-ed" value={draft.title}
                 onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
             : <h1>{work.title}</h1>}
 
           <Field label="شرح اثر">
-            {admin
+            {canManage
               ? <textarea className="ed" value={draft.descr || ""}
                   onChange={(e) => setDraft({ ...draft, descr: e.target.value })} />
               : (work.descr || "—")}
@@ -529,26 +545,26 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
 
           <div className="info-grid">
             <Field label="محور">
-              {admin
+              {canManage
                 ? <input className="ed" value={draft.axis || ""} list="axis-options-w"
                     onChange={(e) => setDraft({ ...draft, axis: e.target.value })} />
                 : (work.axis || "—")}
             </Field>
             <Field label="کمپین">
-              {admin
+              {canManage
                 ? <input className="ed" value={draft.campaign || ""} list="campaign-options-w"
                     onChange={(e) => setDraft({ ...draft, campaign: e.target.value })} />
                 : (work.campaign || "—")}
             </Field>
           </div>
-          {admin && (
+          {canManage && (
             <>
               <datalist id="axis-options-w">{axisList.map((v) => <option key={v} value={v} />)}</datalist>
               <datalist id="campaign-options-w">{campList.map((v) => <option key={v} value={v} />)}</datalist>
             </>
           )}
 
-          {admin ? (
+          {canManage ? (
             <Field label="تاریخ رویداد">
               <label className="date-check">
                 <input type="checkbox" checked={draft.event_date != null}
@@ -569,7 +585,7 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
           )}
 
           <Field label="کلیدواژه‌ها">
-            {admin
+            {canManage
               ? <KeywordInput value={draft.keywords}
                   onChange={(keywords) => setDraft({ ...draft, keywords })} />
               : (
@@ -586,7 +602,7 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
           {/* platform views — social networks only; TV networks have their own section below */}
           <div className="pv-block">
             <span className="info-k">بازدید / لایک / کامنت — شبکه‌های اجتماعی</span>
-            {(admin || canEditEngagement) ? (
+            {canTouchEngagement ? (
               <>
                 <div className="pv-list">
                   {platforms.filter((p) => p.type !== "tv").map((p) => {
@@ -601,7 +617,7 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
                             {p.logo_url
                               ? <img className="plat-logo" src={p.logo_url} alt="" />
                               : <span className="plat-logo ph">{p.label?.[0] || "?"}</span>}
-                            {admin && (
+                            {canManage && (
                               <label className="plat-logo-edit" title="تغییر لوگو" onClick={(e) => e.stopPropagation()}>
                                 <Camera size={11} />
                                 <input type="file" hidden accept="image/*"
@@ -635,7 +651,7 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
                             </label>
                           </div>
                         )}
-                        {admin && (
+                        {canManage && (
                           <div className="pv-card-tools">
                             <button className="mini" title="تغییر نام" onClick={(e) => { e.stopPropagation(); setRenamingId(p.id); setRenameVal(p.label); }}>
                               <Edit3 size={12} /> تغییر نام
@@ -656,7 +672,7 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
                     );
                   })}
                 </div>
-                {admin && (
+                {canManage && (
                   <div className="pv-add">
                     <input placeholder="افزودن پلتفرم…" value={newPlatform}
                       onChange={(e) => setNewPlatform(e.target.value)}
@@ -679,7 +695,7 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
                     <button className="mini" onClick={addPlatform}><Plus size={14} /></button>
                   </div>
                 )}
-                {admin && newPlatformLogo && <span className="muted-sm">لوگو انتخاب شد: {newPlatformLogo.name}</span>}
+                {canManage && newPlatformLogo && <span className="muted-sm">لوگو انتخاب شد: {newPlatformLogo.name}</span>}
                 <div className="pv-totals">
                   <div className="pv-total-item">
                     <Eye size={16} className="cyan" />
@@ -735,10 +751,10 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
           </div>
 
           {/* TV broadcast conductor — networks have no views/likes/comments, only a schedule */}
-          {(admin || canEditEngagement || work.tv.length > 0) && (
+          {(canTouchEngagement || work.tv.length > 0) && (
             <div className="pv-block tv-block">
               <span className="info-k">کنداکتور پخش — شبکه‌های تلویزیونی</span>
-              {(admin || canEditEngagement) ? (
+              {canTouchEngagement ? (
                 <div className="pv-list">
                   {platforms.filter((p) => p.type === "tv").length === 0 && (
                     <p className="muted-sm">هنوز شبکه‌ای تعریف نشده — از فرم «افزودن پلتفرم» بالا با گزینهٔ «تلویزیونی» اضافه کن.</p>
@@ -753,7 +769,7 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
                             {p.logo_url
                               ? <img className="plat-logo" src={p.logo_url} alt="" />
                               : <span className="plat-logo ph">{p.label?.[0] || "?"}</span>}
-                            {admin && (
+                            {canManage && (
                               <label className="plat-logo-edit" title="تغییر لوگو" onClick={(e) => e.stopPropagation()}>
                                 <Camera size={11} />
                                 <input type="file" hidden accept="image/*"
@@ -805,7 +821,7 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
                           </button>
                         )}
 
-                        {admin && (
+                        {canManage && (
                           <div className="pv-card-tools">
                             <button className="mini" title="تغییر نام" onClick={() => { setRenamingId(p.id); setRenameVal(p.label); }}>
                               <Edit3 size={12} /> تغییر نام
@@ -858,25 +874,27 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
             </div>
           )}
 
-          {(admin || canEditEngagement) && (
+          {(admin || canTouchEngagement) && (
             <div className="work-admin-actions">
-              <button className={`btn ${saved ? "saved" : "gold"}`} onClick={save}>
-                {saved ? <><Check size={15} /> ذخیره شد!</> : <><Save size={15} /> ذخیرهٔ تغییرات</>}
-              </button>
+              {canTouchEngagement && (
+                <button className={`btn ${saved ? "saved" : "gold"}`} onClick={save}>
+                  {saved ? <><Check size={15} /> ذخیره شد!</> : <><Save size={15} /> ذخیرهٔ تغییرات</>}
+                </button>
+              )}
               {admin && (
-                <>
-                  <button className="btn light" onClick={() => setCopyTarget(true)}>
-                    <FolderInput size={15} /> کپی به فعالیت دیگر
-                  </button>
-                  <button className="btn ghost danger" onClick={async () => {
-                    if (confirm("این اثر برای همیشه حذف شود؟")) {
-                      await api.delWork(work.id);
-                      goBack();
-                    }
-                  }}>
-                    <Trash2 size={15} /> حذف اثر
-                  </button>
-                </>
+                <button className="btn light" onClick={() => setCopyTarget(true)}>
+                  <FolderInput size={15} /> کپی به فعالیت دیگر
+                </button>
+              )}
+              {canManage && (
+                <button className="btn ghost danger" onClick={async () => {
+                  if (confirm("این اثر برای همیشه حذف شود؟")) {
+                    await api.delWork(work.id);
+                    goBack();
+                  }
+                }}>
+                  <Trash2 size={15} /> حذف اثر
+                </button>
               )}
             </div>
           )}

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Settings, Menu, X, Sun, Moon, Circle, CalendarRange, Layers,
   Plus, SlidersHorizontal, FolderPlus, ChevronLeft, ChevronDown, LogOut, Star, Trash2, Users, BarChart3,
+  Lock, Unlock,
 } from "lucide-react";
 import { api, auth, setUnauthorizedHandler } from "./api";
 import { formatJalaliMonth, isoToJalali } from "./jalali";
@@ -94,6 +95,9 @@ export default function App() {
   const isEditorUser = user?.role === "editor";
   const canEditStats = admin || isEditorUser;
   const canEditEngagement = admin || isEditorUser;
+  // "archive owner" — the only account that can lock/unlock a template, or touch
+  // one that's already locked. distinct from admin: other admins are bound by locks.
+  const isOwner = isAdminUser && !!user?.owner;
   const toggleAdminView = () => {
     setAdminView((v) => {
       const next = !v;
@@ -181,6 +185,13 @@ export default function App() {
     if (mode.type === "template" && String(mode.id) === String(t.id)) { setMode({ type: "date" }); go(viewForMode({ type: "date" })); }
     loadTemplates(); loadProjects();
   };
+  const toggleTemplateLockFromSidebar = async (t, e) => {
+    e.stopPropagation();
+    const next = !t.locked;
+    if (next && !confirm(`تمپلیت «${t.label}» قفل شود؟ بعد از این، هیچ ادمین دیگری جز تو نمی‌تواند اثری را ویرایش/حذف کند — فقط می‌تواند کپی بگیرد.`)) return;
+    await api.toggleTemplateLock(t.id, next);
+    loadTemplates();
+  };
   const delActivityFromSidebar = async (p, e) => {
     e.stopPropagation();
     if (!confirm(`فعالیت «${p.title}» حذف شود؟`)) return;
@@ -240,6 +251,7 @@ export default function App() {
                     <button className="sb-tpl-main" onClick={() => pickTemplate(t)}>
                       <Layers size={16} className="sb-ic" />
                       <span className="sb-title">{t.label}</span>
+                      {!!t.locked && <Lock size={12} className="sb-lock-badge" title="این تمپلیت قفل است" />}
                       <span className="sb-badge">{t.count ?? 0}</span>
                     </button>
                     <span className="sb-star" title="آثار شاخص این تمپلیت"
@@ -250,7 +262,14 @@ export default function App() {
                       onClick={(e) => { e.stopPropagation(); setSidebar(false); go({ name: "report", tid: t.id, label: t.label }); }}>
                       <BarChart3 size={13} />
                     </span>
-                    {admin && (
+                    {isOwner && (
+                      <button className={`sb-star ${t.locked ? "is-locked" : ""}`}
+                        title={t.locked ? "باز کردن قفل این تمپلیت" : "قفل کردن این تمپلیت (فقط تو می‌توانی ویرایش/حذف کنی)"}
+                        onClick={(e) => toggleTemplateLockFromSidebar(t, e)}>
+                        {t.locked ? <Lock size={13} /> : <Unlock size={13} />}
+                      </button>
+                    )}
+                    {admin && !(t.locked && !isOwner) && (
                       <button className="sb-del" title="حذف تمپلیت" onClick={(e) => delTemplateFromSidebar(t, e)}>
                         <Trash2 size={13} />
                       </button>
@@ -266,14 +285,14 @@ export default function App() {
                             <span className="sb-title">{p.title}</span>
                             <span className="sb-date">{p.start_date ? formatJalaliMonth(p.start_date) : "—"}</span>
                           </button>
-                          {admin && (
+                          {admin && !(t.locked && !isOwner) && (
                             <button className="sb-del" title="حذف فعالیت" onClick={(e) => delActivityFromSidebar(p, e)}>
                               <Trash2 size={12} />
                             </button>
                           )}
                         </div>
                       ))}
-                      {admin && (
+                      {admin && !(t.locked && !isOwner) && (
                         <button className="sb-item nested sb-new" onClick={() => newActivityInTemplate(t)}>
                           <Plus size={14} className="sb-ic" />
                           <span className="sb-title">+ فعالیت جدید در این تمپلیت</span>
@@ -379,7 +398,7 @@ export default function App() {
       >
         {view.name === "home" && (
           <Home
-            settings={settings} updateSetting={updateSetting} admin={admin}
+            settings={settings} updateSetting={updateSetting} admin={admin} isOwner={isOwner}
             mode={mode} setMode={setMode}
             templates={templates} reloadTemplates={loadTemplates}
             homeTool={homeTool} setHomeTool={setHomeTool}
@@ -392,7 +411,7 @@ export default function App() {
 
         {view.name === "project" && (
           <ProjectPage
-            projectId={view.id} admin={admin} canEditStats={canEditStats}
+            projectId={view.id} admin={admin} canEditStats={canEditStats} isOwner={isOwner}
             initialQuery={view.q || ""}
             types={types} platforms={platforms} reloadMeta={loadMeta}
             templates={templates}
@@ -416,7 +435,7 @@ export default function App() {
 
         {view.name === "work" && (
           <WorkPage
-            workId={view.workId} projectId={view.id} admin={admin} canEditEngagement={canEditEngagement}
+            workId={view.workId} projectId={view.id} admin={admin} canEditEngagement={canEditEngagement} isOwner={isOwner}
             platforms={platforms} reloadMeta={loadMeta}
             goBack={() => go({ name: "project", id: view.id })}
             openWork={(workId) => go({ name: "work", id: view.id, workId })}

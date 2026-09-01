@@ -49,7 +49,7 @@ function fmtNum(n) {
   return toFa(v.toLocaleString("en-US"));
 }
 
-export default function ProjectPage({ projectId, admin, canEditStats = false, types, reloadMeta, goHome, openWork, initialQuery = "", templates = [], onProjectChanged, onProjectLoaded }) {
+export default function ProjectPage({ projectId, admin, canEditStats = false, isOwner = false, types, reloadMeta, goHome, openWork, initialQuery = "", templates = [], onProjectChanged, onProjectLoaded }) {
   const savedView = loadProjectViewState(projectId);
   const [project, setProject] = useState(null);
   const [works,   setWorks]   = useState([]);
@@ -129,6 +129,13 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, ty
 
   if (!project) return <div className="page muted">در حال بارگذاری…</div>;
 
+  // a locked template can only be structurally changed by the archive owner —
+  // everyone else (even other admins) can still browse it and copy works OUT,
+  // but can't edit/delete the activity or its works. purely a UI mirror of the
+  // same check the server enforces; the server is the real gate.
+  const locked = !!project.templateLocked;
+  const canManage = admin && (!locked || isOwner);
+
   const setStats = async (stats) => {
     setProject({ ...project, stats });
     await api.saveStats(project.id, stats);
@@ -186,10 +193,15 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, ty
         <button className="back" onClick={goHome}>
           <ChevronRight size={16} /> بازگشت
         </button>
-        {admin && (
+        {canManage && (
           <button className="btn light sm" onClick={openActivityEdit}>
             <Edit3 size={14} /> ویرایش فعالیت
           </button>
+        )}
+        {locked && !isOwner && (
+          <span className="lock-badge" title="این تمپلیت توسط مالک آرشیو قفل شده — فقط می‌توانی آثارش را ببینی و کپی بگیری">
+            <Lock size={13} /> قفل‌شده
+          </span>
         )}
       </div>
 
