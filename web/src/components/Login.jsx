@@ -15,8 +15,8 @@ export default function Login({ onLogin }) {
     setBusy(true); setError("");
     try {
       const res = await api.login(username.trim(), password);
-      auth.setSession(res.token, { username: res.username, role: res.role });
-      onLogin({ username: res.username, role: res.role });
+      auth.setSession(res.token, { username: res.username, role: res.role, owner: !!res.owner });
+      onLogin({ username: res.username, role: res.role, owner: !!res.owner });
     } catch (err) {
       setError(err.message || "ورود ناموفق بود.");
     } finally {
