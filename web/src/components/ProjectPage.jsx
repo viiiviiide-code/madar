@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ChevronRight, Plus, Trash2, MoveRight, MoveLeft, Search, ArrowUpDown,
   Upload, Play, Maximize2, Minimize2, LayoutGrid, List as ListIcon, Eye, RefreshCw, X,
-  RotateCcw, Volume2, VolumeX, Film, Info, Star, Copy, Link2, Camera, Save, Edit3, FolderInput,
+  RotateCcw, Volume2, VolumeX, Film, Info, Star, Copy, Link2, Camera, Save, Edit3, FolderInput, Lock,
 } from "lucide-react";
 import { api } from "../api";
 import { formatJalali, toFa, faToEn, jalaliToISO, isValidISO } from "../jalali";
