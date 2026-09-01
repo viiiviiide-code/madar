@@ -453,6 +453,7 @@ app.get("/api/projects", (req, res) => {
   const out = rows.map((p) => ({
     ...p,
     worksCount: db.prepare("SELECT COUNT(*) c FROM works WHERE project_id=?").get(p.id).c,
+    templateLocked: isTemplateLockedForProject(p.id),
   }));
   res.json(out);
 });

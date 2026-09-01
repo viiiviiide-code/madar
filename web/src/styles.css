@@ -1524,3 +1524,9 @@ textarea.ed{min-height:70px;resize:vertical}
   display:inline-flex;align-items:center;gap:4px;
   color:var(--gold);background:rgba(216,178,90,.12);border:1px solid rgba(216,178,90,.3);
 }
+
+/* ---- template panel: lock indicator when edit/delete are hidden ---- */
+.mini-lock-note{
+  display:inline-flex;align-items:center;justify-content:center;
+  color:var(--gold);width:28px;height:28px;
+}

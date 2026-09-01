@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Search, X, Plus, Minus, ArrowRight, ArrowLeft, Bold, LogIn, Trash2, Save, Type, Menu,
-  CalendarRange, Layers, Edit3, Copy, LayoutGrid, ChevronDown, BarChart3,
+  CalendarRange, Layers, Edit3, Copy, LayoutGrid, ChevronDown, BarChart3, Lock,
 } from "lucide-react";
 import { api } from "../api";
 import {
@@ -39,6 +39,11 @@ export default function Home({
   const isNone = mode?.type === "none";
   const activeTemplate = isTemplate ? templates.find((t) => String(t.id) === String(mode.id)) : null;
   const [tplEditTarget, setTplEditTarget] = useState(null);
+
+  // same lock rule as ProjectPage/WorkPage: a locked template's activities can only
+  // be dragged/edited/deleted from this canvas by the archive owner. everyone else
+  // (even other "admin" accounts) gets the plain click-to-open behaviour instead.
+  const canManageProject = (p) => admin && !(p?.templateLocked && !isOwner);
 
   // date-mode range (Jalali)
   const [range, setRange] = useState({
@@ -125,7 +130,7 @@ export default function Home({
   }, [onMove]);
 
   const onPointerDown = (e, p, m) => {
-    if (!admin) return;
+    if (!canManageProject(p)) return;
     e.preventDefault(); e.stopPropagation();
     drag.current = { id: p.id, mode: m, moved: false, sx: e.clientX, sy: e.clientY };
     window.addEventListener("pointermove", onMove);
@@ -259,9 +264,16 @@ export default function Home({
           </button>
           {admin && (
             <>
-              <button className="btn light sm" onClick={() => { setTplEditTarget(activeTemplate?.id || null); setHomeTool("template"); }}>
-                <Edit3 size={14} /> ویرایش تمپلیت
-              </button>
+              {!(activeTemplate?.locked && !isOwner) && (
+                <button className="btn light sm" onClick={() => { setTplEditTarget(activeTemplate?.id || null); setHomeTool("template"); }}>
+                  <Edit3 size={14} /> ویرایش تمپلیت
+                </button>
+              )}
+              {!!activeTemplate?.locked && !isOwner && (
+                <span className="lock-badge sm" title="این تمپلیت توسط مالک آرشیو قفل شده">
+                  <Lock size={13} /> قفل‌شده
+                </span>
+              )}
               {theme === "card" && (
                 <button className="btn light sm" onClick={autoArrangeGrid} title="کارت‌ها را به‌صورت شبکه‌ای مرتب کن">
                   <LayoutGrid size={14} /> چیدمان شبکه‌ای
@@ -291,6 +303,7 @@ export default function Home({
           reload={reloadTemplates}
           onClose={() => { setHomeTool(null); setTplEditTarget(null); }}
           flash={flash}
+          isOwner={isOwner}
           onEnterTemplate={(t) => { setMode({ type: "template", id: t.id, label: t.label }); setHomeTool(null); setTplEditTarget(null); }}
           initialEditId={tplEditTarget}
         />
@@ -310,17 +323,26 @@ export default function Home({
       {/* node editor */}
       {admin && editing && (
         <NodeEditor
-          p={editing} templates={templates}
+          p={editing} templates={templates} readOnly={!canManageProject(editing)}
           onPatch={(patch) => patchLocal(editing.id, patch)}
-          onSave={async () => { await persist(editing.id); await load(); onProjectsChanged?.(); flash("ذخیره شد ✓"); setEditId(null); }}
+          onSave={async () => {
+            try {
+              await persist(editing.id); await load(); onProjectsChanged?.(); flash("ذخیره شد ✓"); setEditId(null);
+            } catch (e) {
+              flash(e.message || "ذخیره ناموفق بود.");
+            }
+          }}
           onEnter={() => openProject(editing.id)}
           onDelete={async () => {
-            if (confirm("حذف این فعالیت؟")) {
+            if (!confirm("حذف این فعالیت؟")) return;
+            try {
               await api.delProject(editing.id);
               setEditId(null);
               await load();
               onProjectsChanged?.();
               flash("فعالیت حذف شد ✓");
+            } catch (e) {
+              flash(e.message || "حذف ناموفق بود.");
             }
           }}
           onDuplicate={async (targetTemplateId) => {
@@ -392,13 +414,13 @@ export default function Home({
             <div key={p.id} className={`node-pos ${editId === p.id ? "editing" : ""}`}
               style={{ left: `${p.node_x}%`, top: `${p.node_y}%` }}>
               <button
-                className={`node ${theme === "card" ? "node-card" : ""} ${anim.float && theme !== "card" ? "anim-float" : ""} ${admin ? "draggable" : ""}`}
+                className={`node ${theme === "card" ? "node-card" : ""} ${anim.float && theme !== "card" ? "anim-float" : ""} ${canManageProject(p) ? "draggable" : ""}`}
                 style={theme === "card"
                   ? { width: Math.max(p.node_size * 2.1, 130), height: Math.max(p.node_size * 1.15, 74) }
                   : { width: p.node_size, height: p.node_size }}
                 onPointerDown={(e) => onPointerDown(e, p, "move")}
                 onClick={() => onNodeClick(p)}
-                title={admin ? "کلیک: ویرایش · بکش: جابه‌جایی" : p.title}
+                title={canManageProject(p) ? "کلیک: ویرایش · بکش: جابه‌جایی" : (admin ? "کلیک: مشاهده و کپی فعالیت (این تمپلیت قفل است)" : p.title)}
               >
                 {theme !== "card" && <span className={`node-dot ${anim.twinkle ? "anim-twinkle" : ""}`} />}
                 <span className="node-inner-title"
@@ -409,7 +431,7 @@ export default function Home({
                   <span className="node-card-date">{formatJalaliMonth(p.start_date)}</span>
                 )}
               </button>
-              {admin && (
+              {canManageProject(p) && (
                 <span className="resize-h" onPointerDown={(e) => onPointerDown(e, p, "resize")} title="تغییر اندازه" />
               )}
             </div>
@@ -507,7 +529,7 @@ function DefineProject({ defaultDate, templates, defaultTemplate, onAdd, onClose
   );
 }
 
-function TemplatePanel({ templates, reload, onClose, flash, onEnterTemplate, initialEditId }) {
+function TemplatePanel({ templates, reload, onClose, flash, isOwner = false, onEnterTemplate, initialEditId }) {
   const TPL_DRAFT_KEY = "madar_draft_template";
   const [draft, setDraft] = useState(() => loadDraft(TPL_DRAFT_KEY) || {
     label: "", from_date: jalaliToISO(1404, 1, 1), to_date: jalaliToISO(1404, 12, 1),
@@ -532,12 +554,24 @@ function TemplatePanel({ templates, reload, onClose, flash, onEnterTemplate, ini
   };
   const startEdit = (t) => { setEditId(t.id); setEdit({ label: t.label, from_date: t.from_date, to_date: t.to_date, theme: t.theme || "orbit", font: t.font || "Vazirmatn" }); };
   const saveEdit = async () => {
-    await api.updateTemplate(editId, edit);
-    setEditId(null); setEdit(null);
-    await reload(); flash("ذخیره شد ✓");
-    onClose();
+    try {
+      await api.updateTemplate(editId, edit);
+      setEditId(null); setEdit(null);
+      await reload(); flash("ذخیره شد ✓");
+      onClose();
+    } catch (e) {
+      flash(e.message || "ذخیره ناموفق بود.");
+    }
   };
-  const del = async (id) => { if (confirm("حذف این تمپلیت؟ فعالیت‌هایش حذف نمی‌شوند.")) { await api.delTemplate(id); await reload(); } };
+  const del = async (id) => {
+    if (!confirm("حذف این تمپلیت؟ فعالیت‌هایش حذف نمی‌شوند.")) return;
+    try {
+      await api.delTemplate(id);
+      await reload();
+    } catch (e) {
+      flash(e.message || "حذف ناموفق بود.");
+    }
+  };
   const closeAndDiscard = () => { clearDraft(TPL_DRAFT_KEY); onClose(); };
 
   return (
@@ -582,8 +616,16 @@ function TemplatePanel({ templates, reload, onClose, flash, onEnterTemplate, ini
                     {t.from_date ? `${formatJalaliMonth(t.from_date)} تا ${formatJalaliMonth(t.to_date)}` : "بدون بازه"} · {t.count ?? 0} فعالیت
                   </span>
                 </div>
-                <button className="mini" onClick={() => startEdit(t)} title="ویرایش"><Edit3 size={14} /></button>
-                <button className="mini danger" onClick={() => del(t.id)} title="حذف"><Trash2 size={14} /></button>
+                {!!t.locked && !isOwner ? (
+                  <span className="mini-lock-note" title="این تمپلیت قفل شده — فقط مالک آرشیو می‌تواند ویرایش/حذفش کند">
+                    <Lock size={13} />
+                  </span>
+                ) : (
+                  <>
+                    <button className="mini" onClick={() => startEdit(t)} title="ویرایش"><Edit3 size={14} /></button>
+                    <button className="mini danger" onClick={() => del(t.id)} title="حذف"><Trash2 size={14} /></button>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -662,7 +704,7 @@ function SettingsPanel({ orbits, labelFont, anim, updateSetting, onClose }) {
   );
 }
 
-function NodeEditor({ p, templates, onPatch, onSave, onEnter, onDelete, onDuplicate, onCreateTemplate, onClose }) {
+function NodeEditor({ p, templates, readOnly = false, onPatch, onSave, onEnter, onDelete, onDuplicate, onCreateTemplate, onClose }) {
   const font = p.node_font || 12;
   const [dupTarget, setDupTarget] = useState("");
   const [duping, setDuping] = useState(false);
@@ -670,41 +712,50 @@ function NodeEditor({ p, templates, onPatch, onSave, onEnter, onDelete, onDuplic
   const [newTplLabel, setNewTplLabel] = useState("");
   return (
     <Panel title="ویرایش فعالیت" onClose={onClose}>
-      <div className="dp-row">
-        <input placeholder="عنوان" value={p.title} onChange={(e) => onPatch({ title: e.target.value })} />
-        <input placeholder="توضیح کوتاه" value={p.sub || ""} onChange={(e) => onPatch({ sub: e.target.value })} />
-      </div>
-      <div className="dp-row">
-        <label className="dp-lbl">تاریخ شروع</label>
-        <JalaliInput value={p.start_date || jalaliToISO(1404, 1, 1)} onChange={(d) => onPatch({ start_date: d })} />
-      </div>
-      <div className="dp-row">
-        <label className="dp-lbl">تاریخ پایان</label>
-        <JalaliInput value={p.end_date || p.start_date || jalaliToISO(1404, 1, 1)} onChange={(d) => onPatch({ end_date: d })} />
-        {p.end_date && (
-          <button type="button" className="mini" onClick={() => onPatch({ end_date: null })} title="پاک کردن">
-            <X size={13} />
-          </button>
-        )}
-      </div>
-      <div className="dp-row">
-        <label className="dp-lbl">تمپلیت</label>
-        <select className="full-select" value={p.template_id || ""} onChange={(e) => onPatch({ template_id: e.target.value || null })}>
-          <option value="">— بدون تمپلیت —</option>
-          {templates.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-        </select>
-      </div>
-      <div className="dp-row ne-style">
-        <span className="dp-lbl"><Type size={14} /> فونت</span>
-        <div className="stepper">
-          <button onClick={() => onPatch({ node_font: Math.max(9, font - 1) })}><Minus size={14} /></button>
-          <b>{toFa(Math.round(font))}</b>
-          <button onClick={() => onPatch({ node_font: Math.min(22, font + 1) })}><Plus size={14} /></button>
+      {readOnly && (
+        <div className="lock-badge" style={{ marginBottom: 10 }}>
+          <Lock size={13} /> این تمپلیت قفل شده — فقط می‌توانی این فعالیت را کپی کنی، نه ویرایش یا حذف.
         </div>
-        <button className={`tg ${p.node_bold ? "on" : ""}`} onClick={() => onPatch({ node_bold: p.node_bold ? 0 : 1 })}>
-          <Bold size={14} /> توپر
-        </button>
-      </div>
+      )}
+      {!readOnly && (
+        <>
+          <div className="dp-row">
+            <input placeholder="عنوان" value={p.title} onChange={(e) => onPatch({ title: e.target.value })} />
+            <input placeholder="توضیح کوتاه" value={p.sub || ""} onChange={(e) => onPatch({ sub: e.target.value })} />
+          </div>
+          <div className="dp-row">
+            <label className="dp-lbl">تاریخ شروع</label>
+            <JalaliInput value={p.start_date || jalaliToISO(1404, 1, 1)} onChange={(d) => onPatch({ start_date: d })} />
+          </div>
+          <div className="dp-row">
+            <label className="dp-lbl">تاریخ پایان</label>
+            <JalaliInput value={p.end_date || p.start_date || jalaliToISO(1404, 1, 1)} onChange={(d) => onPatch({ end_date: d })} />
+            {p.end_date && (
+              <button type="button" className="mini" onClick={() => onPatch({ end_date: null })} title="پاک کردن">
+                <X size={13} />
+              </button>
+            )}
+          </div>
+          <div className="dp-row">
+            <label className="dp-lbl">تمپلیت</label>
+            <select className="full-select" value={p.template_id || ""} onChange={(e) => onPatch({ template_id: e.target.value || null })}>
+              <option value="">— بدون تمپلیت —</option>
+              {templates.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+            </select>
+          </div>
+          <div className="dp-row ne-style">
+            <span className="dp-lbl"><Type size={14} /> فونت</span>
+            <div className="stepper">
+              <button onClick={() => onPatch({ node_font: Math.max(9, font - 1) })}><Minus size={14} /></button>
+              <b>{toFa(Math.round(font))}</b>
+              <button onClick={() => onPatch({ node_font: Math.min(22, font + 1) })}><Plus size={14} /></button>
+            </div>
+            <button className={`tg ${p.node_bold ? "on" : ""}`} onClick={() => onPatch({ node_bold: p.node_bold ? 0 : 1 })}>
+              <Bold size={14} /> توپر
+            </button>
+          </div>
+        </>
+      )}
 
       <div className="ne-duplicate">
         <span className="dp-lbl">کپی کامل این فعالیت به تمپلیت دیگر</span>
@@ -749,9 +800,9 @@ function NodeEditor({ p, templates, onPatch, onSave, onEnter, onDelete, onDuplic
       </div>
 
       <div className="dp-actions ne-actions">
-        <button className="btn ghost sm danger" onClick={onDelete}><Trash2 size={14} /> حذف</button>
+        {!readOnly && <button className="btn ghost sm danger" onClick={onDelete}><Trash2 size={14} /> حذف</button>}
         <button className="btn ghost sm" onClick={onEnter}><LogIn size={14} /> ورود به صفحه</button>
-        <button className="btn gold sm" onClick={onSave}><Save size={14} /> ذخیره</button>
+        {!readOnly && <button className="btn gold sm" onClick={onSave}><Save size={14} /> ذخیره</button>}
       </div>
     </Panel>
   );
