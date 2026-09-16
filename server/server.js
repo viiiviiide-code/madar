@@ -66,7 +66,7 @@ app.put("/api/account/password", (req, res) => {
 });
 
 /* ---------- user management (admin only) ---------- */
-app.get("/api/users", requireAdmin, (req, res) => {
+app.get("/api/users", requireOwner, (req, res) => {
   const users = db.prepare("SELECT id,username,role,owner,created_at FROM users ORDER BY id").all();
   const perms = db.prepare(
     `SELECT up.id, up.user_id, up.template_id, up.project_id,
@@ -77,7 +77,7 @@ app.get("/api/users", requireAdmin, (req, res) => {
   ).all();
   res.json(users.map((u) => ({ ...u, permissions: perms.filter((x) => x.user_id === u.id) })));
 });
-app.post("/api/users", requireAdmin, (req, res) => {
+app.post("/api/users", requireOwner, (req, res) => {
   const { username, password, role, owner } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: "نام کاربری و رمز لازم است" });
   if (String(password).length < 6) return res.status(400).json({ error: "رمز باید حداقل ۶ کاراکتر باشد" });
@@ -91,7 +91,7 @@ app.post("/api/users", requireAdmin, (req, res) => {
     .run(username, db.hashPassword(password), finalRole, new Date().toISOString(), grantOwner ? 1 : 0);
   res.json({ id: r.lastInsertRowid, username, role: finalRole, owner: grantOwner });
 });
-app.put("/api/users/:id", requireAdmin, (req, res) => {
+app.put("/api/users/:id", requireOwner, (req, res) => {
   const u = db.prepare("SELECT * FROM users WHERE id=?").get(req.params.id);
   if (!u) return res.status(404).json({ error: "not found" });
   const { password, role, owner } = req.body || {};
@@ -113,7 +113,7 @@ app.put("/api/users/:id", requireAdmin, (req, res) => {
   }
   res.json({ ok: true });
 });
-app.delete("/api/users/:id", requireAdmin, (req, res) => {
+app.delete("/api/users/:id", requireOwner, (req, res) => {
   if (Number(req.params.id) === req.user.id) {
     return res.status(400).json({ error: "نمی‌توانی حساب خودت را حذف کنی" });
   }
@@ -127,7 +127,7 @@ app.delete("/api/users/:id", requireAdmin, (req, res) => {
 });
 
 /* per-user access grants: a whole template, or a single activity */
-app.get("/api/users/:id/permissions", requireAdmin, (req, res) => {
+app.get("/api/users/:id/permissions", requireOwner, (req, res) => {
   const rows = db.prepare(
     `SELECT up.id, up.template_id, up.project_id,
             t.label AS template_label,
@@ -139,14 +139,14 @@ app.get("/api/users/:id/permissions", requireAdmin, (req, res) => {
   ).all(req.params.id);
   res.json(rows);
 });
-app.post("/api/users/:id/permissions", requireAdmin, (req, res) => {
+app.post("/api/users/:id/permissions", requireOwner, (req, res) => {
   const { template_id, project_id } = req.body || {};
   if (!template_id && !project_id) return res.status(400).json({ error: "تمپلیت یا فعالیت را انتخاب کن" });
   const r = db.prepare("INSERT INTO user_permissions (user_id,template_id,project_id,created_at) VALUES (?,?,?,?)")
     .run(req.params.id, project_id ? null : (template_id || null), project_id || null, new Date().toISOString());
   res.json({ id: r.lastInsertRowid });
 });
-app.delete("/api/users/:id/permissions/:permId", requireAdmin, (req, res) => {
+app.delete("/api/users/:id/permissions/:permId", requireOwner, (req, res) => {
   db.prepare("DELETE FROM user_permissions WHERE id=? AND user_id=?").run(req.params.permId, req.params.id);
   res.json({ ok: true });
 });

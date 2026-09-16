@@ -370,7 +370,7 @@ export default function App() {
                   <SlidersHorizontal size={16} className="sb-ic" /><span className="sb-title">تنظیمات نمایش</span>
                 </button>
               )}
-              {admin && (
+              {isOwner && (
                 <button className="sb-item" onClick={() => openTool("users")}>
                   <Users size={16} className="sb-ic" /><span className="sb-title">مدیریت کاربران و دسترسی‌ها</span>
                 </button>

@@ -316,7 +316,7 @@ export default function Home({
         />
       )}
 
-      {admin && homeTool === "users" && (
+      {admin && isOwner && homeTool === "users" && (
         <UserManagement templates={templates} isOwner={isOwner} onClose={() => setHomeTool(null)} />
       )}
 
