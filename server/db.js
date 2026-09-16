@@ -161,6 +161,9 @@ addCol("templates", "locked", "INTEGER DEFAULT 0"); // archive-lock: blocks edit
 addCol("users", "owner", "INTEGER DEFAULT 0"); // "archive owner" — the only account that can touch a locked template
 addCol("works", "copied_from_work_id", "INTEGER"); // set when a work was created via "copy to another activity" —
 // lets engagement numbers entered on the copy also roll up onto the original archive work
+addCol("templates", "created_by", "INTEGER"); // who made this template — lets a non-owner admin's OWN
+// templates stay visible to them even though other admins' own templates are now hidden from them
+addCol("projects", "created_by", "INTEGER"); // same idea, for an activity made with no template at all
 
 /* one-time addition of "screenshot" / "link" work types (existing installs already seeded) */
 const typesV2 = db.prepare("SELECT value FROM settings WHERE key='types_v2_seeded'").get();
@@ -191,6 +194,17 @@ if (!ownerExists) {
   const firstAdmin = db.prepare("SELECT id FROM users WHERE role='admin' ORDER BY id LIMIT 1").get();
   if (firstAdmin) db.prepare("UPDATE users SET owner=1 WHERE id=?").run(firstAdmin.id);
 }
+
+// existing templates/projects predate the created_by column and would otherwise be
+// invisible to everyone but the owner — attribute them to the owner once, so nothing
+// that already existed disappears the moment this visibility rule rolls out. runs
+// AFTER the owner-promotion step above so there's always someone to attribute to.
+(function backfillCreatedBy() {
+  const owner = db.prepare("SELECT id FROM users WHERE owner=1 ORDER BY id LIMIT 1").get();
+  if (!owner) return;
+  db.prepare("UPDATE templates SET created_by=? WHERE created_by IS NULL").run(owner.id);
+  db.prepare("UPDATE projects SET created_by=? WHERE created_by IS NULL").run(owner.id);
+})();
 
 /* ---------- seed once ---------- */
 const seeded = db.prepare("SELECT value FROM settings WHERE key='seeded'").get();

@@ -178,8 +178,12 @@ app.post("/api/upload", requireAdmin, upload.single("file"), (req, res) => {
 // A viewer with zero permission rows is unrestricted (keeps existing shared
 // "user" account working exactly as before). A viewer with any rows can only
 // see what those rows grant — either a whole template, or a single activity.
+// An admin who ISN'T the archive owner is now scoped the same way, except they
+// additionally auto-see anything locked plus anything they made themselves —
+// see autoVisible*() below — without needing any explicit grant.
 function isRestricted(user) {
-  if (!user || user.role === "admin") return false;
+  if (!user) return true;
+  if (user.role === "admin") return !user.owner;
   const c = db.prepare("SELECT COUNT(*) c FROM user_permissions WHERE user_id=?").get(user.id).c;
   return c > 0;
 }
@@ -205,10 +209,45 @@ function permittedTemplateIds(userId) {
   }
   return ids;
 }
+// visible "for free", with no explicit grant needed: anything locked (read-only for
+// everyone — the whole point of a shared archive), plus — for admin-role accounts
+// only — whatever template/activity they made themselves. This is what keeps one
+// admin's own templates from leaking into another admin's view: each one auto-sees
+// just the shared locked archive(s) plus their own, nothing else.
+function autoVisibleTemplateIds(user) {
+  const ids = new Set(db.prepare("SELECT id FROM templates WHERE locked=1").all().map((r) => r.id));
+  if (user && user.role === "admin") {
+    db.prepare("SELECT id FROM templates WHERE created_by=?").all(user.id).forEach((r) => ids.add(r.id));
+  }
+  return ids;
+}
+function autoVisibleProjectIds(user) {
+  const ids = new Set(
+    db.prepare(`SELECT p.id AS id FROM projects p JOIN templates t ON t.id=p.template_id WHERE t.locked=1`)
+      .all().map((r) => r.id)
+  );
+  if (user && user.role === "admin") {
+    db.prepare(`SELECT p.id AS id FROM projects p JOIN templates t ON t.id=p.template_id WHERE t.created_by=?`)
+      .all(user.id).forEach((r) => ids.add(r.id));
+    db.prepare(`SELECT id FROM projects WHERE created_by=?`).all(user.id).forEach((r) => ids.add(r.id));
+  }
+  return ids;
+}
+function visibleTemplateIdSet(user) {
+  return new Set([...autoVisibleTemplateIds(user), ...permittedTemplateIds(user.id)]);
+}
+function visibleProjectIdSet(user) {
+  return new Set([...autoVisibleProjectIds(user), ...permittedProjectIds(user.id)]);
+}
+function canSeeTemplate(req, templateId) {
+  if (!isRestricted(req.user)) return true;
+  return visibleTemplateIdSet(req.user).has(Number(templateId));
+}
 function canSeeProject(req, projectId) {
   if (!isRestricted(req.user)) return true;
-  return permittedProjectIds(req.user.id).has(Number(projectId));
+  return visibleProjectIdSet(req.user).has(Number(projectId));
 }
+
 
 /* ---------- archive lock ---------- */
 // a locked template can only be modified/deleted by the archive owner. everyone
@@ -377,14 +416,18 @@ app.get("/api/field-values", (req, res) => {
 app.get("/api/templates", (req, res) => {
   const rows = db.prepare("SELECT * FROM templates ORDER BY sort_order, id").all();
   const restricted = isRestricted(req.user);
-  const allowedTpl = restricted ? permittedTemplateIds(req.user.id) : null;
-  const allowedProj = restricted ? permittedProjectIds(req.user.id) : null;
+  const allowedTpl = restricted ? visibleTemplateIdSet(req.user) : null;
+  const allowedProj = restricted ? visibleProjectIdSet(req.user) : null;
   const out = rows
     .filter((t) => !restricted || allowedTpl.has(t.id))
     .map((t) => {
-      const fullAccess = !restricted || db.prepare(
+      // full count (not just the filtered set) whenever the whole template is
+      // "for free" visible — it's locked, it's their own, or it was explicitly granted
+      const autoFull = !restricted || !!t.locked || t.created_by === req.user.id;
+      const grantedFull = !autoFull && db.prepare(
         "SELECT COUNT(*) c FROM user_permissions WHERE user_id=? AND template_id=? AND project_id IS NULL"
       ).get(req.user.id, t.id).c > 0;
+      const fullAccess = autoFull || grantedFull;
       const count = fullAccess
         ? db.prepare("SELECT COUNT(*) c FROM projects WHERE template_id=?").get(t.id).c
         : db.prepare("SELECT id FROM projects WHERE template_id=?").all(t.id)
@@ -396,9 +439,9 @@ app.get("/api/templates", (req, res) => {
 app.post("/api/templates", requireAdmin, (req, res) => {
   const b = req.body;
   const r = db.prepare(
-    "INSERT INTO templates (label, from_date, to_date, sort_order, theme, font, created_at) VALUES (?,?,?,?,?,?,?)"
+    "INSERT INTO templates (label, from_date, to_date, sort_order, theme, font, created_at, created_by) VALUES (?,?,?,?,?,?,?,?)"
   ).run(b.label || "تمپلیت جدید", b.from_date || null, b.to_date || null, b.sort_order ?? 0,
-    b.theme || "orbit", b.font || "Vazirmatn", new Date().toISOString());
+    b.theme || "orbit", b.font || "Vazirmatn", new Date().toISOString(), req.user.id);
   res.json(db.prepare("SELECT * FROM templates WHERE id=?").get(r.lastInsertRowid));
 });
 app.put("/api/templates/:id", requireAdmin, (req, res) => {
@@ -447,7 +490,7 @@ app.get("/api/projects", (req, res) => {
     rows = db.prepare("SELECT * FROM projects ORDER BY start_date").all();
   }
   if (isRestricted(req.user)) {
-    const allowed = permittedProjectIds(req.user.id);
+    const allowed = visibleProjectIdSet(req.user);
     rows = rows.filter((p) => allowed.has(p.id));
   }
   const out = rows.map((p) => ({
@@ -461,7 +504,7 @@ app.get("/api/projects", (req, res) => {
 app.get("/api/projects/all", (req, res) => {
   let rows = db.prepare("SELECT id,title,sub,start_date,end_date,template_id FROM projects ORDER BY start_date").all();
   if (isRestricted(req.user)) {
-    const allowed = permittedProjectIds(req.user.id);
+    const allowed = visibleProjectIdSet(req.user);
     rows = rows.filter((p) => allowed.has(p.id));
   }
   res.json(rows);
@@ -477,18 +520,23 @@ app.get("/api/projects/:id", (req, res) => {
 app.post("/api/projects", requireAdmin, (req, res) => {
   const b = req.body;
   if (b.template_id) {
-    const tpl = db.prepare("SELECT locked FROM templates WHERE id=?").get(b.template_id);
-    if (tpl && tpl.locked && !isOwnerReq(req)) {
-      return res.status(403).json({ error: "این تمپلیت قفل شده — فقط مالک آرشیو می‌تواند فعالیت جدید در آن بسازد." });
+    const tpl = db.prepare("SELECT locked, created_by FROM templates WHERE id=?").get(b.template_id);
+    if (tpl) {
+      if (tpl.locked && !isOwnerReq(req)) {
+        return res.status(403).json({ error: "این تمپلیت قفل شده — فقط مالک آرشیو می‌تواند فعالیت جدید در آن بسازد." });
+      }
+      if (!tpl.locked && !isOwnerReq(req) && tpl.created_by && tpl.created_by !== req.user.id) {
+        return res.status(403).json({ error: "این تمپلیت متعلق به کاربر دیگری است." });
+      }
     }
   }
   const r = db.prepare(
-    `INSERT INTO projects (title,sub,start_date,end_date,teaser_url,node_x,node_y,node_size,node_font,node_bold,orbit,template_id,created_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
+    `INSERT INTO projects (title,sub,start_date,end_date,teaser_url,node_x,node_y,node_size,node_font,node_bold,orbit,template_id,created_at,created_by)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
   ).run(
     b.title || "فعالیت جدید", b.sub || "", b.start_date || null, b.end_date || null, b.teaser_url || null,
     b.node_x ?? 50, b.node_y ?? 35, b.node_size ?? 56, b.node_font ?? 12, b.node_bold ?? 0,
-    b.orbit ?? 1, b.template_id ?? null, new Date().toISOString()
+    b.orbit ?? 1, b.template_id ?? null, new Date().toISOString(), req.user.id
   );
   res.json(hydrateProject(db.prepare("SELECT * FROM projects WHERE id=?").get(r.lastInsertRowid)));
 });
@@ -496,6 +544,7 @@ app.post("/api/projects", requireAdmin, (req, res) => {
 app.put("/api/projects/:id", requireAdmin, (req, res) => {
   const cur = db.prepare("SELECT * FROM projects WHERE id=?").get(req.params.id);
   if (!cur) return res.status(404).json({ error: "not found" });
+  if (!canSeeProject(req, cur.id)) return res.status(403).json({ error: "دسترسی به این فعالیت را نداری" });
   if (!requireProjectUnlocked(req, res, cur.id)) return;
   const b = { ...cur, ...req.body };
   db.prepare(
@@ -507,6 +556,7 @@ app.put("/api/projects/:id", requireAdmin, (req, res) => {
 app.delete("/api/projects/:id", requireAdmin, (req, res) => {
   const cur = db.prepare("SELECT * FROM projects WHERE id=?").get(req.params.id);
   if (!cur) return res.status(404).json({ error: "not found" });
+  if (!canSeeProject(req, cur.id)) return res.status(403).json({ error: "دسترسی به این فعالیت را نداری" });
   if (!requireProjectUnlocked(req, res, cur.id)) return;
   db.prepare("DELETE FROM projects WHERE id=?").run(req.params.id);
   res.json({ ok: true });
@@ -517,17 +567,29 @@ app.delete("/api/projects/:id", requireAdmin, (req, res) => {
 app.post("/api/projects/:id/duplicate", requireAdmin, (req, res) => {
   const src = db.prepare("SELECT * FROM projects WHERE id=?").get(req.params.id);
   if (!src) return res.status(404).json({ error: "not found" });
+  if (!canSeeProject(req, src.id)) return res.status(403).json({ error: "دسترسی به این فعالیت را نداری" });
   const targetTemplateId = req.body.template_id ?? null;
+  if (targetTemplateId) {
+    const tpl = db.prepare("SELECT locked, created_by FROM templates WHERE id=?").get(targetTemplateId);
+    if (tpl) {
+      if (tpl.locked && !isOwnerReq(req)) {
+        return res.status(403).json({ error: "این تمپلیت قفل شده — فقط مالک آرشیو می‌تواند فعالیت جدید در آن بسازد." });
+      }
+      if (!tpl.locked && !isOwnerReq(req) && tpl.created_by && tpl.created_by !== req.user.id) {
+        return res.status(403).json({ error: "این تمپلیت متعلق به کاربر دیگری است." });
+      }
+    }
+  }
 
   const newId = db.transaction(() => {
     const now = new Date().toISOString();
     const pr = db.prepare(
-      `INSERT INTO projects (title,sub,start_date,end_date,teaser_url,node_x,node_y,node_size,node_font,node_bold,orbit,template_id,created_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
+      `INSERT INTO projects (title,sub,start_date,end_date,teaser_url,node_x,node_y,node_size,node_font,node_bold,orbit,template_id,created_at,created_by)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).run(
       src.title + " (کپی)", src.sub, src.start_date, src.end_date, src.teaser_url,
       src.node_x, src.node_y, src.node_size, src.node_font, src.node_bold, src.orbit,
-      targetTemplateId, now
+      targetTemplateId, now, req.user.id
     );
     const pid = pr.lastInsertRowid;
 
@@ -621,7 +683,7 @@ app.get("/api/works", (req, res) => {
 
   let rows = db.prepare(sql).all(...args).map(hydrateWork);
   if (!projectId && isRestricted(req.user)) {
-    const allowed = permittedProjectIds(req.user.id);
+    const allowed = visibleProjectIdSet(req.user);
     rows = rows.filter((w) => allowed.has(w.project_id));
   }
   if (sort === "views") rows = rows.sort((a, b) => b.totalViews - a.totalViews);
@@ -630,7 +692,7 @@ app.get("/api/works", (req, res) => {
 
 /* featured works belonging to a template (across all its projects) */
 app.get("/api/templates/:id/featured-works", (req, res) => {
-  if (isRestricted(req.user) && !permittedTemplateIds(req.user.id).has(Number(req.params.id))) {
+  if (isRestricted(req.user) && !visibleTemplateIdSet(req.user).has(Number(req.params.id))) {
     return res.status(403).json({ error: "دسترسی نداری" });
   }
   const rows = db.prepare(
@@ -639,7 +701,7 @@ app.get("/api/templates/:id/featured-works", (req, res) => {
   ).all(req.params.id);
   let out = rows.map(hydrateWork);
   if (isRestricted(req.user)) {
-    const allowed = permittedProjectIds(req.user.id);
+    const allowed = visibleProjectIdSet(req.user);
     out = out.filter((w) => allowed.has(w.project_id));
   }
   res.json(out);
@@ -651,13 +713,13 @@ app.get("/api/templates/:id/report", (req, res) => {
   const templateId = Number(req.params.id);
   const template = db.prepare("SELECT id,label FROM templates WHERE id=?").get(templateId);
   if (!template) return res.status(404).json({ error: "not found" });
-  if (isRestricted(req.user) && !permittedTemplateIds(req.user.id).has(templateId)) {
+  if (isRestricted(req.user) && !visibleTemplateIdSet(req.user).has(templateId)) {
     return res.status(403).json({ error: "دسترسی نداری" });
   }
 
   let projects = db.prepare("SELECT id,title FROM projects WHERE template_id=? ORDER BY start_date").all(templateId);
   if (isRestricted(req.user)) {
-    const allowed = permittedProjectIds(req.user.id);
+    const allowed = visibleProjectIdSet(req.user);
     projects = projects.filter((p) => allowed.has(p.id));
   }
 
@@ -753,6 +815,7 @@ function saveMedia(workId, media) {
 
 app.post("/api/works", requireAdmin, (req, res) => {
   const b = req.body;
+  if (!canSeeProject(req, b.project_id)) return res.status(403).json({ error: "دسترسی به این فعالیت را نداری" });
   if (!requireProjectUnlocked(req, res, b.project_id)) return;
   const tx = db.transaction(() => {
     // primary url = explicit url, else first *displayable* media item (never a link)
@@ -776,6 +839,7 @@ app.post("/api/works", requireAdmin, (req, res) => {
 app.put("/api/works/:id", requireAdmin, (req, res) => {
   const cur = db.prepare("SELECT * FROM works WHERE id=?").get(req.params.id);
   if (!cur) return res.status(404).json({ error: "not found" });
+  if (!canSeeProject(req, cur.project_id)) return res.status(403).json({ error: "دسترسی به این اثر را نداری" });
   if (!requireProjectUnlocked(req, res, cur.project_id)) return;
   const b = { ...cur, ...req.body };
   const tx = db.transaction(() => {
@@ -804,6 +868,7 @@ app.put("/api/works/:id", requireAdmin, (req, res) => {
 app.delete("/api/works/:id", requireAdmin, (req, res) => {
   const cur = db.prepare("SELECT * FROM works WHERE id=?").get(req.params.id);
   if (!cur) return res.status(404).json({ error: "not found" });
+  if (!canSeeProject(req, cur.project_id)) return res.status(403).json({ error: "دسترسی به این اثر را نداری" });
   if (!requireProjectUnlocked(req, res, cur.project_id)) return;
   db.prepare("DELETE FROM works WHERE id=?").run(req.params.id);
   res.json({ ok: true });
@@ -853,10 +918,13 @@ app.delete("/api/works/:id/share", (req, res) => {
 app.post("/api/works/:id/duplicate", requireAdmin, (req, res) => {
   const src = db.prepare("SELECT * FROM works WHERE id=?").get(req.params.id);
   if (!src) return res.status(404).json({ error: "not found" });
+  if (!canSeeProject(req, src.project_id)) return res.status(403).json({ error: "دسترسی به این اثر را نداری" });
   const targetProjectId = req.body.project_id;
   const move = !!req.body.move;
   const targetProject = db.prepare("SELECT id FROM projects WHERE id=?").get(targetProjectId);
   if (!targetProject) return res.status(400).json({ error: "فعالیت مقصد پیدا نشد" });
+  if (!canSeeProject(req, targetProjectId)) return res.status(403).json({ error: "به فعالیت مقصد دسترسی نداری" });
+  if (!requireProjectUnlocked(req, res, targetProjectId)) return; // can't add INTO a template locked by someone else
 
   // copying OUT of a locked template is always allowed (that's the whole point of
   // being able to reuse archived material) — but "move" deletes the source, which
@@ -930,7 +998,7 @@ app.get("/api/works/:id/similar", (req, res) => {
   const rows = db.prepare(sql).all(...args);
   let out = rows.map(hydrateWork);
   if (isRestricted(req.user)) {
-    const allowed = permittedProjectIds(req.user.id);
+    const allowed = visibleProjectIdSet(req.user);
     out = out.filter((w) => allowed.has(w.project_id));
   }
   res.json(out);

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ChevronRight, Plus, Trash2, MoveRight, MoveLeft, Search, ArrowUpDown,
   Upload, Play, Maximize2, Minimize2, LayoutGrid, List as ListIcon, Eye, RefreshCw, X,
-  RotateCcw, Volume2, VolumeX, Film, Info, Star, Copy, Link2, Camera, Save, Edit3, FolderInput, Lock,
+  RotateCcw, Volume2, VolumeX, Film, Info, Star, Copy, Link2, Camera, Save, Edit3, FolderInput, Lock, CheckSquare,
 } from "lucide-react";
 import { api } from "../api";
 import { formatJalali, toFa, faToEn, jalaliToISO, isValidISO } from "../jalali";
@@ -64,6 +64,9 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
   const [openStat, setOpenStat] = useState(null);
   const [copySource, setCopySource] = useState(null);
   const [copyWorkTarget, setCopyWorkTarget] = useState(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulkCopyOpen, setBulkCopyOpen] = useState(false);
   const teaserRef  = useRef(null);
   const [teaserPct, setTeaserPct] = useState(null);
   const [editActOpen, setEditActOpen] = useState(false);
@@ -119,6 +122,19 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
     try { sessionStorage.setItem(`madar_lastwork_${projectId}`, String(workId)); } catch {}
     openWork(workId);
   };
+
+  // multi-select for bulk "copy to another activity" — clicking a card either opens
+  // it (normal mode) or toggles its checkbox (select mode); never both at once.
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const exitSelectMode = () => { setSelectMode(false); setSelectedIds(new Set()); };
+  const onCardClick = (w) => { if (selectMode) toggleSelect(w.id); else goToWork(w.id); };
+  const selectedWorks = works.filter((w) => selectedIds.has(w.id));
 
   // fullscreen change listener
   useEffect(() => {
@@ -405,6 +421,16 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
           />
         )}
 
+        {bulkCopyOpen && selectedWorks.length > 0 && (
+          <CopyWorkModal
+            works={selectedWorks}
+            currentProjectId={project.id}
+            canMove={!locked || isOwner}
+            onClose={() => setBulkCopyOpen(false)}
+            onDone={() => { setBulkCopyOpen(false); exitSelectMode(); setRefresh((x) => x + 1); }}
+          />
+        )}
+
         {/* unified toolbar */}
         <div className="works-toolbar">
           <div className="search-box small flex-1">
@@ -441,13 +467,38 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
               <ListIcon size={16} />
             </button>
           </div>
+          {admin && works.length > 0 && (
+            <button className={`sort ${selectMode ? "on" : ""}`}
+              onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}>
+              <CheckSquare size={15} /> {selectMode ? "لغو انتخاب" : "انتخاب چندتایی"}
+            </button>
+          )}
         </div>
+
+        {selectMode && (
+          <div className="bulk-bar">
+            <span className="muted-sm">{toFa(selectedIds.size)} اثر انتخاب شده</span>
+            <div className="bulk-bar-actions">
+              <button className="btn ghost sm" onClick={() => setSelectedIds(new Set(works.map((w) => w.id)))}>
+                انتخاب همه ({toFa(works.length)})
+              </button>
+              <button className="btn gold sm" disabled={selectedIds.size === 0} onClick={() => setBulkCopyOpen(true)}>
+                <FolderInput size={14} /> کپی به فعالیت دیگر
+              </button>
+            </div>
+          </div>
+        )}
 
         {viewMode === "grid" ? (
           <div className="works-grid">
             {works.map((w) => (
-              <div key={w.id} id={`work-${w.id}`} className={`work-card ${w.featured ? "is-featured" : ""}`} onClick={() => goToWork(w.id)} role="button" tabIndex={0}>
-                {admin && (
+              <div key={w.id} id={`work-${w.id}`} className={`work-card ${w.featured ? "is-featured" : ""} ${selectMode && selectedIds.has(w.id) ? "is-selected" : ""}`} onClick={() => onCardClick(w)} role="button" tabIndex={0}>
+                {selectMode && (
+                  <label className="card-select-check" onClick={(e) => e.stopPropagation()}>
+                    <input type="checkbox" checked={selectedIds.has(w.id)} onChange={() => toggleSelect(w.id)} />
+                  </label>
+                )}
+                {admin && !selectMode && (
                   <div className="card-admin-tools">
                     <button className={`card-star ${w.featured ? "on" : ""}`} title={w.featured ? "حذف از آثار شاخص" : "علامت‌گذاری به‌عنوان اثر شاخص"}
                       onClick={async (e) => { e.stopPropagation(); await api.updateWork(w.id, { featured: w.featured ? 0 : 1 }); setRefresh((x) => x + 1); }}>
@@ -486,13 +537,18 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
         ) : (
           <div className="works-list">
             {works.map((w) => (
-              <div key={w.id} id={`work-${w.id}`} className={`work-row ${w.featured ? "is-featured" : ""}`} onClick={() => goToWork(w.id)} role="button" tabIndex={0}>
+              <div key={w.id} id={`work-${w.id}`} className={`work-row ${w.featured ? "is-featured" : ""} ${selectMode && selectedIds.has(w.id) ? "is-selected" : ""}`} onClick={() => onCardClick(w)} role="button" tabIndex={0}>
+                {selectMode && (
+                  <label className="card-select-check row-select-check" onClick={(e) => e.stopPropagation()}>
+                    <input type="checkbox" checked={selectedIds.has(w.id)} onChange={() => toggleSelect(w.id)} />
+                  </label>
+                )}
                 <div className="wr-thumb"><Media work={w} small /></div>
                 <div className="wr-body">
                   <div className="wr-line1">
                     <span className="chip">{typeLabel(w.type)}</span>
                     <h3>{!!w.featured && <Star size={13} className="title-star" fill="currentColor" />} {w.title}</h3>
-                    {admin && (
+                    {admin && !selectMode && (
                       <div className="row-admin-tools">
                         <button className={`card-star ${w.featured ? "on" : ""}`} title={w.featured ? "حذف از آثار شاخص" : "اثر شاخص"}
                           onClick={async (e) => { e.stopPropagation(); await api.updateWork(w.id, { featured: w.featured ? 0 : 1 }); setRefresh((x) => x + 1); }}>

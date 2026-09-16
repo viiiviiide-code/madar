@@ -1531,3 +1531,21 @@ textarea.ed{min-height:70px;resize:vertical}
   display:inline-flex;align-items:center;justify-content:center;
   color:var(--gold);width:28px;height:28px;
 }
+
+/* ---- bulk-select works for multi-copy ---- */
+.bulk-bar{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  background:var(--gold-soft);border:1px solid rgba(216,178,90,.3);border-radius:10px;
+  padding:8px 14px;margin:10px 0;
+}
+.bulk-bar-actions{display:flex;gap:8px;flex-wrap:wrap}
+.card-select-check{
+  position:absolute;top:8px;inset-inline-start:8px;z-index:5;
+  display:flex;align-items:center;justify-content:center;
+  width:24px;height:24px;background:rgba(0,0,0,.55);border-radius:6px;cursor:pointer;
+}
+.card-select-check input{width:16px;height:16px;accent-color:var(--gold);cursor:pointer}
+.row-select-check{position:static;background:none;width:auto;height:auto;margin-inline-end:4px}
+.work-card.is-selected,.work-row.is-selected{
+  outline:2px solid var(--gold);outline-offset:-2px;
+}
