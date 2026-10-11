@@ -173,7 +173,7 @@ export default function PublicWorkPage({ token }) {
       </div>
 
       <footer className="foot">
-        <span className="foot-line">قدرت‌گرفته از <span className="brand-vivide">Vivide</span></span>
+        <span className="foot-line" dir="ltr">Based on <span className="brand-vivide">Vivide</span></span>
       </footer>
     </div>
   );
