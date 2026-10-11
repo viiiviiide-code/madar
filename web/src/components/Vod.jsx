@@ -185,10 +185,13 @@ function FilterDropdown({ types, type, setType, featuredOnly, setFeaturedOnly })
 export function VodBrowser({
   works, types, typeLabel, onOpen,
   q, setQ, type, setType, featuredOnly, setFeaturedOnly,
+  initialSeeAll = null, initialSort = "new", onSeeAllChange, restoreWorkId = null,
 }) {
   const hasFilters = !!q || type !== "all" || featuredOnly;
-  const [seeAll, setSeeAll] = useState(null);       // کلید ردیفی که در حالت «نمایش همه» است
-  const [seeAllSort, setSeeAllSort] = useState("new");
+  const [seeAll, setSeeAll] = useState(initialSeeAll);       // کلید ردیفی که در حالت «نمایش همه» است (با برگشت از صفحهٔ اثر بازیابی می‌شود)
+  const [seeAllSort, setSeeAllSort] = useState(initialSort || "new");
+  // برای ذخیره در ProjectPage: برگشت از صفحهٔ اثر باید به همین «نمایش همه» برگردد
+  useEffect(() => { onSeeAllChange?.(seeAll, seeAllSort); }, [seeAll, seeAllSort]);
 
   const rows = useMemo(() => {
     const byDate = (a, b) => String(b.event_date || "").localeCompare(String(a.event_date || "")) || b.id - a.id;
@@ -265,6 +268,18 @@ export function VodBrowser({
   // شبکه‌های «نمایش همه» و «نتایج» تکه‌تکه رندر می‌شوند
   const seeAllChunk = useChunked(currentItems, 36, `${seeAll}|${seeAllSort}`);
   const resultsChunk = useChunked(works, 36, `${q}|${type}|${featuredOnly}`);
+
+  // برگشت از صفحهٔ یک اثر: کارت همان اثر را در شبکهٔ «نمایش همه» پیدا کن و وسط صفحه بیاور
+  // (شبکه تکه‌تکه رندر می‌شود، پس اگر هنوز ساخته نشده، تکه‌ها را زیاد می‌کنیم)
+  const pendingWork = useRef(restoreWorkId ? String(restoreWorkId) : null);
+  useEffect(() => {
+    const id = pendingWork.current;
+    if (!id || !current) return;
+    const el = document.querySelector(`.vod-seeall-page [data-work-id="${id}"]`);
+    if (el) { pendingWork.current = null; el.scrollIntoView({ block: "center" }); }
+    else if (currentItems.some((w) => String(w.id) === id)) seeAllChunk.showAll();
+    else pendingWork.current = null;
+  }, [current, currentItems, seeAllChunk.count]);
 
   return (
     <div className="vod-browser" id="vod-rows">

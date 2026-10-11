@@ -65,6 +65,9 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
   const [sort,    setSort]    = useState(savedView?.sort || "new");
   const [featuredOnly, setFeaturedOnly] = useState(savedView?.featuredOnly || false);
   const [viewMode,setViewMode]= useState(savedView?.viewMode || "list");
+  // «نمایش همه»ی ردیف‌ها (مثلاً همهٔ ویدئوها) هم با برگشت از صفحهٔ اثر حفظ شود
+  const [seeAllView, setSeeAllView] = useState({ key: savedView?.seeAll || null, sort: savedView?.seeAllSort || "new" });
+  const restoreWorkId = useRef(sessionStorage.getItem(`madar_lastwork_${projectId}`)).current;
   const [addOpen, setAddOpen] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const [statLabels, setStatLabels] = useState([]);
@@ -113,8 +116,8 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
 
   // remember filters + grid/list mode for this activity across navigation
   useEffect(() => {
-    saveProjectViewState(projectId, { q, type, sort, featuredOnly, viewMode });
-  }, [projectId, q, type, sort, featuredOnly, viewMode]);
+    saveProjectViewState(projectId, { q, type, sort, featuredOnly, viewMode, seeAll: seeAllView.key, seeAllSort: seeAllView.sort });
+  }, [projectId, q, type, sort, featuredOnly, viewMode, seeAllView]);
 
   // after works load, if we're coming back from a work's page, scroll straight to it
   // instead of dumping the person back at the top of the list
@@ -496,6 +499,8 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
             works={works} types={types} typeLabel={typeLabel} onOpen={(w) => goToWork(w.id)}
             q={q} setQ={setQ} type={type} setType={setType}
             featuredOnly={featuredOnly} setFeaturedOnly={setFeaturedOnly}
+            initialSeeAll={seeAllView.key} initialSort={seeAllView.sort} restoreWorkId={restoreWorkId}
+            onSeeAllChange={(key, sort) => setSeeAllView((v) => (v.key === key && v.sort === sort ? v : { key, sort }))}
           />
         ) : (
           <>
