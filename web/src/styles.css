@@ -2755,3 +2755,44 @@ select{cursor:pointer}
 /* فقط موسیقی (بدون تصویر/ویدئو): ستون باریک، نه یک قاب بزرگ */
 .work-vod .work-view.audio-only .work-media-col{width:min(100%,640px);margin-inline:auto}
 .work-view.audio-only .work-media-col{max-width:640px}
+
+/* =====================================================================
+   جدا‌سازی ردیف‌ها: هر ردیف آیکون و رنگ خودش را دارد، ردیف‌های نوع زیر یک تیتر دسته‌بندی
+   ===================================================================== */
+.vod-row{--row-accent:var(--gold);margin-top:0}
+.vod-row-head{align-items:center;gap:11px;margin-bottom:0}
+.vod-row-ic{
+  flex:0 0 auto;width:32px;height:32px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;
+  color:var(--row-accent);background:color-mix(in srgb,var(--row-accent) 15%,transparent);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--row-accent) 28%,transparent);
+}
+.vod-row-head h2{font-size:clamp(18px,1.8vw,23px);font-weight:800}
+/* شمارندهٔ ردیف همیشه دیده شود (قبلاً فقط با موس) */
+.vod-row-hint{
+  opacity:1;transform:none;padding:2px 10px;border-radius:20px;font-size:12px;font-weight:600;
+  color:var(--muted);background:var(--vod-chip);
+}
+.vod-seeall{color:var(--ink);background:color-mix(in srgb,var(--ink) 7%,transparent);box-shadow:inset 0 0 0 1px var(--line)}
+
+/* ردیف‌های «نمای کلی» (شاخص/پربازدید/تازه‌ترین): یک باند هم‌رنگ زمینه */
+.vod-row.is-lead{
+  margin-top:10px;padding-top:22px;
+  background:linear-gradient(to bottom,color-mix(in srgb,var(--row-accent) 7%,transparent),transparent 78%);
+  border-top:1px solid color-mix(in srgb,var(--row-accent) 24%,transparent);
+}
+/* ردیف‌های نوع: با خط جداکننده و فاصلهٔ بیشتر */
+.vod-row.is-type{margin-top:6px;padding-top:26px;border-top:1px solid var(--line)}
+.vod-row.is-type .vod-row-head h2{font-weight:700}
+.vod-row.is-type .vod-row-ic{background:color-mix(in srgb,var(--row-accent) 12%,transparent)}
+.vod-row.is-type .vod-scroller{padding-bottom:22px}
+/* کارت‌های هر نوع، لبهٔ هم‌رنگ ردیف بگیرند */
+.vod-row.is-type .vod-type{color:var(--row-accent)}
+
+/* تیتر جداکنندهٔ «بر اساس نوع اثر» */
+.vod-group{
+  display:flex;align-items:center;gap:16px;padding:44px var(--gutter) 18px;
+  color:var(--muted);font-size:13px;font-weight:700;letter-spacing:0;
+}
+.vod-group::before,.vod-group::after{content:"";flex:1;height:1px;background:linear-gradient(to left,var(--line),transparent)}
+.vod-group::before{background:linear-gradient(to right,var(--line),transparent)}
+.vod-group span{padding:5px 14px;border-radius:20px;background:var(--vod-chip);box-shadow:inset 0 0 0 1px var(--line)}

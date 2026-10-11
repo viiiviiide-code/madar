@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, ChevronLeft, ChevronDown, Play, Eye, Star, Search, X, SearchX, FolderOpen, ArrowRight, SlidersHorizontal, Check } from "lucide-react";
+import { ChevronRight, ChevronLeft, ChevronDown, Play, Eye, Star, Search, X, SearchX, FolderOpen, ArrowRight, SlidersHorizontal, Check, Film, Image as ImageIcon, Frame, Music, Camera, Link2, Flame, Clock, Layers } from "lucide-react";
 import { toFa } from "../jalali";
 import { LazyMedia } from "./ProjectPage.jsx";
 import { useChunked } from "./Lazy.jsx";
@@ -43,7 +43,18 @@ export function VodCard({ work, typeLabel, onOpen, rank, wide }) {
   );
 }
 
-export function VodRow({ title, hint, items, typeLabel, onOpen, ranked, wide, onSeeAll, total, lead, seeAllLabel, max = 24 }) {
+// هر نوع اثر آیکون و رنگ خودش را دارد تا ردیف‌ها در یک نگاه از هم جدا شوند
+const TYPE_LOOK = {
+  video: { Icon: Film, accent: "#ef6a5b" },
+  image: { Icon: ImageIcon, accent: "#4cc3b0" },
+  poster: { Icon: Frame, accent: "#e8b04b" },
+  audio: { Icon: Music, accent: "#a78bfa" },
+  screenshot: { Icon: Camera, accent: "#6aa7ff" },
+  link: { Icon: Link2, accent: "#94a3b8" },
+};
+const typeLook = (key) => TYPE_LOOK[key] || { Icon: Layers, accent: "#94a3b8" };
+
+export function VodRow({ title, hint, items, typeLabel, onOpen, ranked, wide, onSeeAll, total, lead, seeAllLabel, max = 24, Icon, accent, variant }) {
   const scroller = useRef(null);
   const [edge, setEdge] = useState({ prev: false, next: false });
 
@@ -77,8 +88,9 @@ export function VodRow({ title, hint, items, typeLabel, onOpen, ranked, wide, on
   const hidden = items.length - visible.length;
   if (!items.length && !lead) return null;
   return (
-    <section className="vod-row" aria-label={title}>
+    <section className={`vod-row ${variant ? `is-${variant}` : ""}`} aria-label={title} style={accent ? { "--row-accent": accent } : undefined}>
       <header className="vod-row-head">
+        {Icon && <span className="vod-row-ic" aria-hidden="true"><Icon size={17} strokeWidth={2} /></span>}
         <h2>{title}</h2>
         {hint && <span className="vod-row-hint">{hint}</span>}
         {onSeeAll && (
@@ -195,7 +207,7 @@ export function VodBrowser({
   const defs = useMemo(() => {
     const list = [];
     if (rows.featured.length && rows.featured.length < works.length) {
-      list.push({ key: "featured", title: "آثار شاخص", hint: "انتخاب مجموعه", items: rows.featured, wide: true });
+      list.push({ key: "featured", title: "آثار شاخص", hint: "انتخاب مجموعه", items: rows.featured, wide: true, Icon: Star, accent: "#e8b04b", variant: "lead" });
     }
     const topOk = rows.top.length >= 3;
     if (topOk || rows.mode === "few") {
@@ -203,13 +215,16 @@ export function VodBrowser({
         key: "top", title: topOk || rows.mode !== "few" ? "پربازدیدترین‌ها" : "آثار این فعالیت",
         hint: topOk ? "رتبه‌بندی بر اساس بازدید" : undefined,
         items: topOk ? rows.top : rows.all, ranked: topOk, limit: topOk ? 10 : 0,
+        Icon: topOk ? Flame : Layers, accent: "#ef6a5b", variant: "lead",
       });
     }
-    if (rows.mode === "some") list.push({ key: "all", title: "همهٔ آثار", items: rows.all });
+    if (rows.mode === "some") list.push({ key: "all", title: "همهٔ آثار", items: rows.all, Icon: Layers, accent: "#e8b04b", variant: "lead" });
     if (rows.mode === "many") {
-      list.push({ key: "latest", title: "تازه‌ترین‌ها", items: rows.all, limit: 14 });
-      rows.perType.forEach(({ t, items }) =>
-        list.push({ key: `type:${t.key}`, title: t.label, hint: `${toFa(items.length)} اثر`, items }));
+      list.push({ key: "latest", title: "تازه‌ترین‌ها", hint: "از همهٔ نوع‌ها", items: rows.all, limit: 14, Icon: Clock, accent: "#e8b04b", variant: "lead" });
+      rows.perType.forEach(({ t, items }) => {
+        const look = typeLook(t.key);
+        list.push({ key: `type:${t.key}`, title: t.label, hint: `${toFa(items.length)} اثر`, items, group: "type", Icon: look.Icon, accent: look.accent, variant: "type" });
+      });
     }
     return list;
   }, [rows, works.length]);
@@ -305,12 +320,18 @@ export function VodBrowser({
           </div>
         </section>
       ) : (
-        defs.map((d) => {
+        defs.map((d, i) => {
           const shown = d.limit ? d.items.slice(0, d.limit) : d.items;
           return (
-            <VodRow key={d.key} title={d.title} hint={d.hint} items={shown} total={d.items.length}
-              typeLabel={typeLabel} onOpen={onOpen} ranked={d.ranked} wide={d.wide}
-              onSeeAll={d.items.length >= 3 ? () => openAll(d.key) : undefined} />
+            <React.Fragment key={d.key}>
+              {d.group === "type" && defs[i - 1]?.group !== "type" && (
+                <div className="vod-group" role="separator"><span>بر اساس نوع اثر</span></div>
+              )}
+              <VodRow title={d.title} hint={d.hint} items={shown} total={d.items.length}
+                typeLabel={typeLabel} onOpen={onOpen} ranked={d.ranked} wide={d.wide}
+                Icon={d.Icon} accent={d.accent} variant={d.variant}
+                onSeeAll={d.items.length >= 3 ? () => openAll(d.key) : undefined} />
+            </React.Fragment>
           );
         })
       )}
