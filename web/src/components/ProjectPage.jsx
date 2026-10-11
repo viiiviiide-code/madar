@@ -9,7 +9,7 @@ import {
 import { PageSkeleton, EmptyState } from "./States.jsx";
 import { LazyMount, useChunked, heroDelayMs, ThumbImg } from "./Lazy.jsx";
 import { thumbOf } from "../thumbs";
-import { VodBrowser } from "./Vod.jsx";
+import { VodBrowser, flashCard } from "./Vod.jsx";
 import { api } from "../api";
 import { formatJalali, toFa, faToEn, jalaliToISO, isValidISO } from "../jalali";
 import KeywordInput from "./KeywordInput.jsx";
@@ -126,7 +126,7 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
     const lastId = sessionStorage.getItem(`madar_lastwork_${projectId}`);
     if (!lastId) return;
     const el = document.getElementById(`work-${lastId}`) || document.querySelector(`[data-work-id="${lastId}"]`);
-    if (el) { el.scrollIntoView({ block: "center" }); sessionStorage.removeItem(`madar_lastwork_${projectId}`); }
+    if (el) { el.scrollIntoView({ block: "center" }); flashCard(el); sessionStorage.removeItem(`madar_lastwork_${projectId}`); }
     else if (chunk.has) chunk.showAll();            // هنوز رندر نشده → همه را نشان بده؛ این افکت دوباره اجرا می‌شود
     else sessionStorage.removeItem(`madar_lastwork_${projectId}`);
   }, [works, projectId, chunk.count]);

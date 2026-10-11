@@ -12,6 +12,16 @@ function fmt(n) {
   return toFa((Number(n) || 0).toLocaleString("en-US"));
 }
 
+/* کارتی که از آن به صفحهٔ اثر رفتیم؛ بعد از برگشت چند ثانیه هایلایت می‌شود تا جایش گم نشود */
+export function flashCard(el) {
+  const card = el && el.closest ? el.closest(".vod-card") : null;
+  if (!card) return;
+  card.classList.remove("vod-flash");
+  void card.offsetWidth;                       // انیمیشن از اول شروع شود
+  card.classList.add("vod-flash");
+  setTimeout(() => card.classList.remove("vod-flash"), 2600);
+}
+
 export function VodCard({ work, typeLabel, onOpen, rank, wide }) {
   const open = () => onOpen(work);
   return (
@@ -276,7 +286,7 @@ export function VodBrowser({
     const id = pendingWork.current;
     if (!id || !current) return;
     const el = document.querySelector(`.vod-seeall-page [data-work-id="${id}"]`);
-    if (el) { pendingWork.current = null; el.scrollIntoView({ block: "center" }); }
+    if (el) { pendingWork.current = null; el.scrollIntoView({ block: "center" }); flashCard(el); }
     else if (currentItems.some((w) => String(w.id) === id)) seeAllChunk.showAll();
     else pendingWork.current = null;
   }, [current, currentItems, seeAllChunk.count]);
