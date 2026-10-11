@@ -138,7 +138,7 @@ function create(UP) {
     const v = validate(u);
     if (!v) return;
     ensure(u, 480).catch(() => {});
-    if (v.kind === "image") ensure(u, 1280).catch(() => {});
+    ensure(u, 1280).catch(() => {});   // عکس: برای صفحهٔ اثر؛ ویدئو: فریم تیزر برای هیرو
   }
 
   return { ensure, warm, validate, probe, DIR, WIDTHS, kindOf, outName };

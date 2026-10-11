@@ -10,6 +10,7 @@ import { Media, gradFor, VideoThumb, mediaKind, linkHost } from "./ProjectPage.j
 import { confirmDialog, alertDialog } from "./Dialog.jsx";
 import { PageSkeleton } from "./States.jsx";
 import { VodRow } from "./Vod.jsx";
+import { thumbOf } from "../thumbs";
 import WorkInsights from "./Insights.jsx";
 
 /* compact number display */
@@ -34,6 +35,7 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
     String(k || "").split(",").filter(Boolean).map((x) => types.find((t) => t.key === x)?.label || x).join("، ") || "—";
   const [work,        setWork]        = useState(null);
   const [similar,     setSimilar]     = useState([]);
+  const [arState,     setArState]     = useState(null);   // نسبت واقعی رسانهٔ فعلی: { url, v }
   const [draft,       setDraft]       = useState(null);
   const [newPlatform, setNewPlatform] = useState("");
   const [renamingId, setRenamingId] = useState(null);
@@ -151,6 +153,10 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
   const curIdx = gallery.length ? Math.min(activeIdx, gallery.length - 1) : 0;
   const item = gallery[curIdx] || null;
   const isImg = item && item.kind !== "video" && item.kind !== "audio";
+  // قاب خودش را با نسبت واقعی رسانه تنظیم می‌کند (بدون نوار اضافی): افقی / مربع / عمودی
+  const arNow = arState && item && arState.url === item.url ? arState.v : null;
+  const orient = arNow == null ? "pending" : arNow < 0.92 ? "portrait" : arNow < 1.15 ? "square" : "landscape";
+  const ambient = item ? (thumbOf(item.url, 480) || (isImg ? item.url : null)) : null;   // درخشش محو پشت قاب
   const goRel = (delta) => {
     if (gallery.length < 2) return;
     setActiveIdx((i) => {
@@ -350,9 +356,10 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
         <ChevronRight size={16} /> بازگشت به آثار
       </button>
 
-      <div className="work-view">
+      <div className={`work-view ${orient}`} style={{ "--ar": arNow || 1.7778 }}>
         {/* media stage (gallery-aware) */}
         <div className="work-media-col">
+          {ambient && <div className="work-ambient" aria-hidden="true" style={{ backgroundImage: `url("${ambient}")` }} />}
           <div className={`work-stage ${isImg ? "is-image" : ""}`} ref={stageRef}>
             {!item && links.length > 0 && (
               <a className="media media-ph media-link" href={links[0].url} target="_blank" rel="noreferrer"
@@ -364,7 +371,8 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
             {!item && links.length === 0 && <Media work={work} big />}
             {item && item.kind === "video" && (
               <div className="media-wrap media-wrap-big">
-                <video key={item.url} className="media media-contain" src={item.url} controls autoPlay playsInline />
+                <video key={item.url} className="media media-contain" src={item.url} controls autoPlay playsInline
+                  onLoadedMetadata={(e) => { const v = e.currentTarget; if (v.videoWidth && v.videoHeight) setArState({ url: item.url, v: v.videoWidth / v.videoHeight }); }} />
               </div>
             )}
             {item && item.kind === "audio" && (
@@ -376,7 +384,8 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
               <div className="media-wrap media-wrap-big"
                 onClick={() => gallery.length > 1 && goRel(1)}
                 style={gallery.length > 1 ? { cursor: "pointer" } : undefined}>
-                <img className="media media-contain" src={item.url} alt={work.title} />
+                <img className="media media-contain" src={item.url} alt={work.title}
+                  onLoad={(e) => { const i = e.currentTarget; if (i.naturalWidth && i.naturalHeight) setArState({ url: item.url, v: i.naturalWidth / i.naturalHeight }); }} />
               </div>
             )}
 

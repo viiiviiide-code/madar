@@ -2666,3 +2666,53 @@ select{cursor:pointer}
 /* پوستر هیرو: تصویر سبک تا رسیدن تیزر، بعد محو می‌شود */
 .studio-poster{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;transition:opacity .7s var(--ease)}
 .studio-poster.hide{opacity:0}
+
+/* =====================================================================
+   قاب نمایش اثر (حالت نمایش): با نسبت واقعی رسانه، نه یک قاب پهن ثابت
+   ===================================================================== */
+/* دکمهٔ تمام‌صفحه روی نوار کنترل ویدئو نیفتد: بالا-چپ */
+.stage-fs{top:12px;bottom:auto}
+
+.work-vod .work-view{--stage-h:min(64vh,640px)}                      /* افقی: کوتاه‌تر تا عنوان زیرش دیده شود */
+.work-vod .work-view.portrait,.work-vod .work-view.square{--stage-h:min(76vh,780px)}  /* عمودی/مربع: کنار اطلاعات، پس بلندتر */
+
+.work-vod .work-media-col{position:relative;isolation:isolate;width:min(100%,calc(var(--stage-h) * var(--ar)));margin-inline:auto}
+/* درخشش محوِ هم‌رنگ رسانه؛ جای نوارهای سیاه را با عمق پر می‌کند */
+.work-ambient{
+  position:absolute;inset:-48px -24px;z-index:-1;pointer-events:none;border-radius:40px;
+  background-size:cover;background-position:center;filter:blur(64px) saturate(1.5);opacity:.34;
+}
+:root[data-theme="light"] .work-ambient{opacity:.22}
+
+.work-vod .work-stage,.work-vod .work-stage.is-image{
+  width:100%;aspect-ratio:var(--ar);min-height:0;max-height:var(--stage-h);overflow:hidden;
+  background:#000;border-radius:var(--r-lg);display:block;
+}
+.work-vod .work-stage .media-wrap-big,.work-vod .work-stage.is-image .media-wrap,.work-vod .work-stage.is-image .media-wrap-big{
+  width:100%;height:100%;max-height:none;min-height:0;background:#000;
+}
+.work-vod .work-stage .media-contain,.work-vod .work-stage.is-image .media-contain{
+  width:100%;height:100%;max-width:none;max-height:none;object-fit:contain;border-radius:0;box-shadow:none;
+}
+/* تمام‌صفحهٔ واقعی: همهٔ این قیدها لغو می‌شود */
+.work-vod .work-stage:fullscreen{width:100vw;height:100vh;max-height:none;aspect-ratio:auto;border-radius:0;display:flex;align-items:center;justify-content:center}
+
+/* روی عرض‌های کوچک، درخشش از لبهٔ صفحه بیرون نزند (سرریز افقی نسازد) */
+@media(max-width:900px){.work-vod .work-view{overflow-x:clip}}
+
+/* عمودی و مربع: قاب کنار اطلاعات (ستون راست در RTL)، نه وسط یک صفحهٔ خالی */
+.work-vod .work-view.portrait,.work-vod .work-view.square{
+  grid-template-columns:minmax(0,calc(var(--stage-h) * var(--ar))) minmax(0,1fr);gap:36px 56px;align-items:start;
+}
+.work-vod .work-view.portrait .work-media-col,.work-vod .work-view.square .work-media-col{margin-inline:0;width:100%}
+.work-vod .work-view.portrait .work-info,.work-vod .work-view.square .work-info{grid-template-columns:1fr}
+.work-vod .work-view.portrait .work-info .pv-block,.work-vod .work-view.square .work-info .pv-block{grid-column:auto;grid-row:auto}
+@media(max-width:900px){
+  .work-vod .work-view.portrait,.work-vod .work-view.square{grid-template-columns:1fr}
+  .work-vod .work-view.portrait .work-media-col,.work-vod .work-view.square .work-media-col{width:min(100%,calc(var(--stage-h) * var(--ar)));margin-inline:auto}
+}
+
+/* تیزر هیرو در تمام‌صفحه: دکمه‌ها پایین، و محوشدنِ پایین هیرو (مخصوص صفحه) کنار برود */
+.vod .studio-frame:fullscreen .studio-controls.floating{bottom:28px;left:34px}
+.vod .studio-frame:fullscreen::after{display:none}
+.vod .studio-frame:fullscreen .studio-meta{bottom:84px}
