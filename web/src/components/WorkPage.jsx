@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronRight, ChevronLeft, Maximize2, Eye, Plus, X, Save, Check, Trash2, Star, Link2, Camera, Heart, MessageCircle, Edit3, FolderInput, Share2, Download, Lock } from "lucide-react";
+import { ChevronRight, ChevronLeft, Maximize2, Eye, Plus, X, Save, Check, Trash2, Star, Link2, Music, Camera, Heart, MessageCircle, Edit3, FolderInput, Share2, Download, Lock } from "lucide-react";
 import { api } from "../api";
 import { formatJalali, toFa, jalaliToISO } from "../jalali";
 import JalaliInput from "./JalaliInput.jsx";
@@ -35,7 +35,8 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
     String(k || "").split(",").filter(Boolean).map((x) => types.find((t) => t.key === x)?.label || x).join("، ") || "—";
   const [work,        setWork]        = useState(null);
   const [similar,     setSimilar]     = useState([]);
-  const [arState,     setArState]     = useState(null);   // نسبت واقعی رسانهٔ فعلی: { url, v }
+  const [ratios,      setRatios]      = useState({});     // نسبت واقعی هر فایل: { [url]: عرض/ارتفاع }
+  const noteRatio = (u, v) => setRatios((r) => (r[u] && Math.abs(r[u] - v) < 0.002 ? r : { ...r, [u]: v }));
   const [draft,       setDraft]       = useState(null);
   const [newPlatform, setNewPlatform] = useState("");
   const [renamingId, setRenamingId] = useState(null);
@@ -58,6 +59,8 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
   const [uploadPct,   setUploadPct]   = useState(null);
   const [linkUrl,     setLinkUrl]     = useState("");
   const stageRef = useRef(null);
+  const stripRef = useRef(null);
+  const swipeX = useRef(null);
   const mediaFileRef = useRef(null);
 
   useEffect(() => {
@@ -103,18 +106,65 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
     try { localStorage.setItem(editDraftKey(workId), JSON.stringify(draft)); } catch {}
   }, [draft, admin, workId]);
 
+  // فایل‌های دیداریِ آلبوم (تصویر/ویدئو). موسیقی و لینک جدا نمایش داده می‌شوند، نه داخل قاب.
+  const visual = (work?.media || [])
+    .map((m) => ({ url: m.url, kind: mediaKind(m.url, m.kind) }))
+    .filter((m) => m.kind !== "link" && m.kind !== "audio");
+  const galLen = visual.length;
+  const visIdx = galLen ? Math.min(activeIdx, galLen - 1) : 0;
+  const visKey = visual.map((m) => `${m.kind}:${m.url}`).join("\n");
+
   // keyboard arrows navigate the gallery (declared before any conditional return
   // so hook order stays stable). RTL-friendly: Left = next, Right = previous.
-  const galLen = (work?.media?.length) || (work?.url ? 1 : 0);
   useEffect(() => {
     if (galLen < 2) return;
     const onKey = (e) => {
+      const t = e.target && e.target.tagName;
+      if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT" || t === "AUDIO" || t === "VIDEO") return;
       if (e.key === "ArrowLeft") { e.preventDefault(); setActiveIdx((i) => (i + 1) % galLen); }
       else if (e.key === "ArrowRight") { e.preventDefault(); setActiveIdx((i) => (i - 1 + galLen) % galLen); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [galLen]);
+
+  // نسبت همهٔ فایل‌های آلبوم را از روی بندانگشتی سبک یاد می‌گیریم تا قاب بپرد نکند.
+  useEffect(() => {
+    if (!visKey) return;
+    let dead = false;
+    visKey.split("\n").forEach((row) => {
+      const i = row.indexOf(":");
+      const kind = row.slice(0, i), u = row.slice(i + 1);
+      const probe = (src, fallback) => {
+        const im = new Image();
+        im.onload = () => { if (!dead && im.naturalWidth && im.naturalHeight) noteRatio(u, im.naturalWidth / im.naturalHeight); };
+        im.onerror = () => { if (fallback && !dead) probe(fallback); };
+        im.src = src;
+      };
+      const th = thumbOf(u, 480);
+      if (th) probe(th, kind === "video" ? null : u);
+      else if (kind !== "video") probe(u);
+    });
+    return () => { dead = true; };
+  }, [visKey]);
+
+  // همسایه‌های فایل فعلی را از قبل بارگیری می‌کنیم تا ورق‌زدن بدون چشمک باشد.
+  useEffect(() => {
+    if (galLen < 2) return;
+    [1, -1].forEach((d) => {
+      const m = visual[(visIdx + d + galLen) % galLen];
+      if (m && m.kind !== "video") { const im = new Image(); im.src = m.url; }
+    });
+  }, [visKey, visIdx]);
+
+  // نوار بندانگشتی: فایل فعال وسط نوار بیاید (فقط خودِ نوار اسکرول شود، نه صفحه)
+  useEffect(() => {
+    const strip = stripRef.current;
+    const b = strip && strip.children[visIdx];
+    if (!b) return;
+    const sr = strip.getBoundingClientRect(), br = b.getBoundingClientRect();
+    strip.scrollBy({ left: br.left + br.width / 2 - (sr.left + sr.width / 2), behavior: "smooth" });
+  }, [visIdx, visKey]);
 
   if (notFound) return (
     <div className="page">
@@ -149,14 +199,28 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
     : (work.url ? [{ url: work.url, kind: work.type }] : []);
   const fullGallery = rawGallery.map((m) => ({ ...m, kind: mediaKind(m.url, m.kind) }));
   const links = fullGallery.filter((m) => m.kind === "link");
-  const gallery = fullGallery.filter((m) => m.kind !== "link");
+  const gallery = fullGallery.filter((m) => m.kind !== "link" && m.kind !== "audio");
+  const audios = fullGallery.filter((m) => m.kind === "audio");
+  const isAlbum = gallery.length > 1;
   const curIdx = gallery.length ? Math.min(activeIdx, gallery.length - 1) : 0;
   const item = gallery[curIdx] || null;
   const isImg = item && item.kind !== "video" && item.kind !== "audio";
   // قاب خودش را با نسبت واقعی رسانه تنظیم می‌کند (بدون نوار اضافی): افقی / مربع / عمودی
-  const arNow = arState && item && arState.url === item.url ? arState.v : null;
+  // آلبوم: قابِ ثابت برای همهٔ فایل‌ها (نسبت فایل اول) تا با ورق‌زدن اندازه عوض نشود؛ تکی: نسبت خودِ فایل
+  const rawAr = item ? (isAlbum ? ratios[gallery[0].url] : ratios[item.url]) : null;
+  const arNow = rawAr ? (isAlbum ? Math.min(1.78, Math.max(0.8, rawAr)) : rawAr) : null;
   const orient = arNow == null ? "pending" : arNow < 0.92 ? "portrait" : arNow < 1.15 ? "square" : "landscape";
   const ambient = item ? (thumbOf(item.url, 480) || (isImg ? item.url : null)) : null;   // درخشش محو پشت قاب
+  const audioOnly = !item && audios.length > 0;
+  const onlyOnePlays = (e) => {
+    document.querySelectorAll(".audio-card audio").forEach((a) => { if (a !== e.currentTarget) a.pause(); });
+  };
+  const onSwipeEnd = (e) => {
+    const x0 = swipeX.current; swipeX.current = null;
+    if (x0 == null || !isAlbum || (e.target && e.target.tagName === "VIDEO")) return;
+    const dx = e.changedTouches[0].clientX - x0;
+    if (Math.abs(dx) > 50) goRel(dx < 0 ? 1 : -1);   // RTL: کشیدن به چپ = بعدی
+  };
   const goRel = (delta) => {
     if (gallery.length < 2) return;
     setActiveIdx((i) => {
@@ -356,11 +420,14 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
         <ChevronRight size={16} /> بازگشت به آثار
       </button>
 
-      <div className={`work-view ${orient}`} style={{ "--ar": arNow || 1.7778 }}>
+      <div className={`work-view ${orient} ${audioOnly ? "audio-only" : ""}`} style={{ "--ar": arNow || 1.7778 }}>
         {/* media stage (gallery-aware) */}
         <div className="work-media-col">
           {ambient && <div className="work-ambient" aria-hidden="true" style={{ backgroundImage: `url("${ambient}")` }} />}
-          <div className={`work-stage ${isImg ? "is-image" : ""}`} ref={stageRef}>
+          {!audioOnly && (
+          <div className={`work-stage ${isImg ? "is-image" : ""} ${isAlbum ? "is-album" : ""}`} ref={stageRef}
+            onTouchStart={(e) => { swipeX.current = isAlbum ? e.touches[0].clientX : null; }} onTouchEnd={onSwipeEnd}>
+            {isAlbum && ambient && <div className="stage-backdrop" aria-hidden="true" style={{ backgroundImage: `url("${ambient}")` }} />}
             {!item && links.length > 0 && (
               <a className="media media-ph media-link" href={links[0].url} target="_blank" rel="noreferrer"
                 style={{ background: gradFor(work.id) }}>
@@ -372,20 +439,13 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
             {item && item.kind === "video" && (
               <div className="media-wrap media-wrap-big">
                 <video key={item.url} className="media media-contain" src={item.url} controls autoPlay playsInline
-                  onLoadedMetadata={(e) => { const v = e.currentTarget; if (v.videoWidth && v.videoHeight) setArState({ url: item.url, v: v.videoWidth / v.videoHeight }); }} />
-              </div>
-            )}
-            {item && item.kind === "audio" && (
-              <div className="media media-ph" style={{ background: gradFor(work.id) }}>
-                <audio key={item.url} src={item.url} controls preload="metadata" style={{ width: "86%" }} />
+                  onLoadedMetadata={(e) => { const v = e.currentTarget; if (v.videoWidth && v.videoHeight) noteRatio(item.url, v.videoWidth / v.videoHeight); }} />
               </div>
             )}
             {item && isImg && (
-              <div className="media-wrap media-wrap-big"
-                onClick={() => gallery.length > 1 && goRel(1)}
-                style={gallery.length > 1 ? { cursor: "pointer" } : undefined}>
-                <img className="media media-contain" src={item.url} alt={work.title}
-                  onLoad={(e) => { const i = e.currentTarget; if (i.naturalWidth && i.naturalHeight) setArState({ url: item.url, v: i.naturalWidth / i.naturalHeight }); }} />
+              <div className="media-wrap media-wrap-big">
+                <img key={item.url} className={`media media-contain ${isAlbum ? "gal-fade" : ""}`} src={item.url} alt={work.title}
+                  onLoad={(e) => { const i = e.currentTarget; if (i.naturalWidth && i.naturalHeight) noteRatio(item.url, i.naturalWidth / i.naturalHeight); }} />
               </div>
             )}
 
@@ -398,30 +458,45 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
                 <button className="gal-nav gal-next" onClick={(e) => { e.stopPropagation(); goRel(1); }} title="بعدی">
                   <ChevronLeft size={22} />
                 </button>
-                <span className="gal-counter">{toFa(curIdx + 1)} / {toFa(gallery.length)}</span>
+                <span className="gal-counter" dir="ltr">{toFa(curIdx + 1)} / {toFa(gallery.length)}</span>
               </>
             )}
 
-            {item && item.kind !== "audio" && (
+            {item && (
               <button className="ic-btn stage-fs" onClick={goFullscreen} title="تمام‌صفحه">
                 <Maximize2 size={17} />
               </button>
             )}
           </div>
+          )}
 
           {/* thumbnails strip when more than one file */}
           {gallery.length > 1 && (
-            <div className="gallery-strip">
+            <div className="gallery-strip" ref={stripRef}>
               {gallery.map((m, i) => (
                 <button key={i} className={`gs-thumb ${i === curIdx ? "active" : ""}`}
                   onClick={() => setActiveIdx(i)} title={`فایل ${toFa(i + 1)}`}>
                   {m.kind === "video"
                     ? <VideoThumb url={m.url} className="gs-img" />
-                    : m.kind === "audio"
-                      ? <span className="gs-icon">🎵</span>
-                      : <img className="gs-img" src={m.url} alt="" />}
+                    : <img className="gs-img" src={thumbOf(m.url, 480) || m.url} alt="" loading="lazy" decoding="async"
+                        onError={(e) => { if (e.currentTarget.src.indexOf("/_thumbs/") > -1) e.currentTarget.src = m.url; }} />}
                   {m.kind === "video" && <span className="gs-play">▶</span>}
                 </button>
+              ))}
+            </div>
+          )}
+
+          {/* موسیقی: پخش‌کنندهٔ جمع‌وجور خودش، نه داخل قاب بزرگ */}
+          {audios.length > 0 && (
+            <div className="audio-list">
+              {audios.map((a, i) => (
+                <div key={a.url} className="audio-card">
+                  <div className="audio-cover" style={{ background: gradFor(work.id) }}><Music size={24} strokeWidth={1.6} /></div>
+                  <div className="audio-body">
+                    <div className="audio-t">{audios.length > 1 ? `موسیقی ${toFa(i + 1)}` : "موسیقی"}</div>
+                    <audio src={a.url} controls preload="metadata" onPlay={onlyOnePlays} />
+                  </div>
+                </div>
               ))}
             </div>
           )}

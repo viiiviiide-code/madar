@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Eye, Heart, MessageCircle, Link2, AlertTriangle } from "lucide-react";
+import { Eye, Heart, MessageCircle, Link2, Music, AlertTriangle } from "lucide-react";
 import { api } from "../api";
 import { formatJalali, toFa } from "../jalali";
 import { Media, gradFor, VideoThumb, mediaKind, linkHost } from "./ProjectPage.jsx";
@@ -43,7 +43,9 @@ export default function PublicWorkPage({ token }) {
     : (work.url ? [{ url: work.url, kind: work.type }] : []);
   const fullGallery = rawGallery.map((m) => ({ ...m, kind: mediaKind(m.url, m.kind) }));
   const links = fullGallery.filter((m) => m.kind === "link");
-  const gallery = fullGallery.filter((m) => m.kind !== "link");
+  const gallery = fullGallery.filter((m) => m.kind !== "link" && m.kind !== "audio");
+  const audios = fullGallery.filter((m) => m.kind === "audio");
+  const audioOnly = !gallery.length && audios.length > 0;
   const curIdx = gallery.length ? Math.min(activeIdx, gallery.length - 1) : 0;
   const item = gallery[curIdx] || null;
   const isImg = item && item.kind !== "video" && item.kind !== "audio";
@@ -60,9 +62,9 @@ export default function PublicWorkPage({ token }) {
       </header>
 
       <div className="page public-work-page">
-        <div className="work-view">
+        <div className={`work-view ${audioOnly ? "audio-only" : ""}`}>
           <div className="work-media-col">
-            <div className={`work-stage ${isImg ? "is-image" : ""}`}>
+            {!audioOnly && <div className={`work-stage ${isImg ? "is-image" : ""}`}>
               {!item && links.length > 0 && (
                 <a className="media media-ph media-link" href={links[0].url} target="_blank" rel="noreferrer"
                   style={{ background: gradFor(work.id) }}>
@@ -76,17 +78,12 @@ export default function PublicWorkPage({ token }) {
                   <video key={item.url} className="media media-contain" src={item.url} controls playsInline />
                 </div>
               )}
-              {item && item.kind === "audio" && (
-                <div className="media media-ph" style={{ background: gradFor(work.id) }}>
-                  <audio key={item.url} src={item.url} controls preload="metadata" style={{ width: "86%" }} />
-                </div>
-              )}
               {item && isImg && (
                 <div className="media-wrap media-wrap-big">
                   <img className="media media-contain" src={item.url} alt={work.title} />
                 </div>
               )}
-            </div>
+            </div>}
 
             {gallery.length > 1 && (
               <div className="gallery-strip">
@@ -95,10 +92,22 @@ export default function PublicWorkPage({ token }) {
                     onClick={() => setActiveIdx(i)} title={`فایل ${toFa(i + 1)}`}>
                     {m.kind === "video"
                       ? <VideoThumb url={m.url} className="gs-img" />
-                      : m.kind === "audio"
-                        ? <span className="gs-icon">🎵</span>
-                        : <img className="gs-img" src={m.url} alt="" />}
+                      : <img className="gs-img" src={m.url} alt="" />}
                   </button>
+                ))}
+              </div>
+            )}
+
+            {audios.length > 0 && (
+              <div className="audio-list">
+                {audios.map((a, i) => (
+                  <div key={a.url} className="audio-card">
+                    <div className="audio-cover" style={{ background: gradFor(work.id) }}><Music size={24} strokeWidth={1.6} /></div>
+                    <div className="audio-body">
+                      <div className="audio-t">{audios.length > 1 ? `موسیقی ${toFa(i + 1)}` : "موسیقی"}</div>
+                      <audio src={a.url} controls preload="metadata" onPlay={(e) => document.querySelectorAll(".audio-card audio").forEach((x) => { if (x !== e.currentTarget) x.pause(); })} />
+                    </div>
+                  </div>
                 ))}
               </div>
             )}

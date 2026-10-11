@@ -2717,3 +2717,41 @@ select{cursor:pointer}
 .vod .studio-frame:fullscreen .studio-controls.floating{bottom:28px;left:34px}
 .vod .studio-frame:fullscreen::after{display:none}
 .vod .studio-frame:fullscreen .studio-meta{bottom:84px}
+
+/* =====================================================================
+   آلبوم (چند فایل) و موسیقی در صفحهٔ اثر
+   ===================================================================== */
+/* آلبوم: قاب ثابت می‌ماند؛ پشت هر فایل، همان فایل محو شده (به‌جای نوار سیاه) */
+.stage-backdrop{
+  position:absolute;inset:0;z-index:0;pointer-events:none;
+  background-size:cover;background-position:center;filter:blur(26px) saturate(1.35) brightness(.62);transform:scale(1.25);
+}
+.work-vod .work-stage.is-album{background:#05070c}
+.work-stage.is-album .media-wrap-big{position:relative;z-index:1;background:transparent}
+.work-vod .work-stage.is-album .media-wrap-big{background:transparent}
+.work-stage.is-album .gal-nav,.work-stage.is-album .gal-counter,.work-stage.is-album .stage-fs{z-index:4}
+.gal-fade{animation:galFade .28s var(--ease,ease) both}
+@keyframes galFade{from{opacity:0}to{opacity:1}}
+.gal-counter{direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums;letter-spacing:.04em}
+
+/* نوار بندانگشتی: یک ردیف قابل‌اسکرول، کوچک‌تر و مرتب */
+.gallery-strip{flex-wrap:nowrap;overflow-x:auto;gap:10px;padding:4px 2px 8px;scrollbar-width:thin;overscroll-behavior-x:contain}
+.gallery-strip .gs-thumb{width:84px;height:84px;border-radius:12px;opacity:.62;transition:opacity .2s,border-color .2s,transform .2s}
+.gallery-strip .gs-thumb:hover{opacity:1}
+.gallery-strip .gs-thumb.active{opacity:1;transform:none}
+
+/* موسیقی: پخش‌کنندهٔ جمع‌وجور */
+.audio-list{display:flex;flex-direction:column;gap:10px}
+.audio-card{
+  display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:16px;
+  background:var(--panel);border:1px solid var(--line);
+}
+.audio-cover{
+  flex:0 0 52px;height:52px;border-radius:13px;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.92);
+}
+.audio-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.audio-t{font-size:12.5px;font-weight:700;color:var(--muted,#9aa3b2)}
+.audio-body audio{width:100%;height:36px;display:block}
+/* فقط موسیقی (بدون تصویر/ویدئو): ستون باریک، نه یک قاب بزرگ */
+.work-vod .work-view.audio-only .work-media-col{width:min(100%,640px);margin-inline:auto}
+.work-view.audio-only .work-media-col{max-width:640px}
