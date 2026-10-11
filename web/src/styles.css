@@ -1,57 +1,134 @@
-@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap');
-
-*,*::before,*::after{font-family:'Vazirmatn',Tahoma,system-ui,sans-serif}
+/* =====================================================================
+   مدار — طراحی تیره و سینمایی
+   توکن‌ها در :root تعریف شده‌اند؛ تم روشن فقط همین توکن‌ها را بازتعریف می‌کند.
+   فونت وزیرمتن از index.html می‌آید؛ لاله‌زار (نمایشی) از public/fonts میزبانی می‌شود.
+   ===================================================================== */
+@font-face{
+  font-family:'Lalezar';font-style:normal;font-weight:400;font-display:swap;
+  src:url('/fonts/lalezar-arabic.woff2') format('woff2');
+  unicode-range:U+0600-06FF,U+0750-077F,U+0870-0891,U+0897-08E1,U+08E3-08FF,U+200C-200E,U+2010-2011,U+204F,U+2E41,U+FB50-FDFF,U+FE70-FE74,U+FE76-FEFC;
+}
+@font-face{
+  font-family:'Lalezar';font-style:normal;font-weight:400;font-display:swap;
+  src:url('/fonts/lalezar-latin.woff2') format('woff2');
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2212;
+}
 
 :root {
-  --bg:#0E1320; --bg2:#141B2B; --panel:#192136; --panel2:#212C46; --line:#2B3756;
-  --ink:#ECEEF6; --muted:#8B93AB; --faint:#5C6480;
-  --gold:#E8B04B; --gold-soft:rgba(232,176,75,.16);
-  --cyan:#5BD6C8; --coral:#FF6F5E; --green:#4ade80;
-  --bg-glow:#18223a;
+  color-scheme:dark;
+  --font-body:'Vazirmatn',Tahoma,system-ui,sans-serif;
+  --font-display:'Lalezar','Vazirmatn',Tahoma,system-ui,sans-serif;
+
+  /* سطوح: سیاه گرم‌نشده با کمی تمایل به آبی؛ هیچ‌جا #000 خالص نیست */
+  --bg:#080A0F; --bg2:#0D1017; --panel:#11141C; --panel2:#181C27; --line:#222737;
+  --line-soft:rgba(255,255,255,.06);
+  --ink:#EDEEF3; --muted:#9298AA; --faint:#6F768B;
+  --gold:#E8B04B; --gold-soft:rgba(232,176,75,.13);
+  --cyan:#5BD6C8; --coral:#F0705F; --green:#5FCB8A;
+  --bg-glow:#121A2E;
+  --shadow-rgb:2,4,10;              /* سایه‌ها هم‌رنگ زمینه‌اند، نه مشکی خالص */
+  --glass:rgba(17,20,28,.72);
+
+  --r-sm:8px; --r-md:12px; --r-lg:18px;
+  --ease:cubic-bezier(.22,1,.36,1);
+  --dur:.22s;
+
+  /* مقیاس z-index */
+  --z-pop:20; --z-top:40; --z-side:50; --z-toast:60; --z-modal:80; --z-dialog:90; --z-grain:100;
 }
 :root[data-theme="light"]{
-  --bg:#E9ECF3; --bg2:#FFFFFF; --panel:#FFFFFF; --panel2:#EAEEF6; --line:#BBC4D6;
-  --ink:#1B2233; --muted:#566076; --faint:#8089A0;
-  --gold:#A86E0C; --gold-soft:rgba(168,110,12,.12);
-  --cyan:#138473; --coral:#CC3F28; --green:#178049;
-  --bg-glow:#d6deee;
+  color-scheme:light;
+  --bg:#EDEFF4; --bg2:#FFFFFF; --panel:#FFFFFF; --panel2:#E9ECF3; --line:#C5CCDB;
+  --line-soft:rgba(20,30,60,.08);
+  --ink:#171C2B; --muted:#505A70; --faint:#7A839A;
+  --gold:#A86E0C; --gold-soft:rgba(168,110,12,.11);
+  --cyan:#138473; --coral:#C23A25; --green:#178049;
+  --bg-glow:#DCE3F1;
+  --shadow-rgb:40,55,90;
+  --glass:rgba(255,255,255,.78);
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%}
+/* هر عنصر فونت را از والد می‌گیرد تا فونت انتخابی هر تمپلیت (Home) واقعاً اعمال شود */
+*,*::before,*::after{font-family:inherit}
+html,body{min-height:100%}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
 body{
-  font-family:'Vazirmatn',Tahoma,system-ui,sans-serif;
-  background:radial-gradient(900px 600px at 80% -10%,var(--bg-glow) 0%,transparent 60%),var(--bg);
-  color:var(--ink);line-height:1.7;transition:background .3s,color .3s;overflow-x:hidden;
+  font-family:var(--font-body);
+  background:
+    radial-gradient(1100px 640px at 88% -12%,var(--bg-glow) 0%,transparent 62%),
+    radial-gradient(800px 520px at -6% 108%,rgba(232,176,75,.045) 0%,transparent 60%),
+    var(--bg);
+  color:var(--ink);line-height:1.75;
+  transition:background-color .3s,color .3s;overflow-x:hidden;
+  text-wrap:pretty;
 }
-@media(prefers-reduced-motion:reduce){*{animation:none!important}}
+/* دانهٔ فیلم: لایهٔ ثابت و غیرقابل‌کلیک که یکنواختی دیجیتال را می‌شکند */
+body::after{
+  content:"";position:fixed;inset:0;z-index:var(--z-grain);pointer-events:none;opacity:.05;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+:root[data-theme="light"] body::after{opacity:.035;mix-blend-mode:multiply}
+h1,h2,h3{text-wrap:balance}
+.num,.stat-val,.sb-badge,.sb-count,.views,.count-badge{font-variant-numeric:tabular-nums}
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation:none!important;transition-duration:.01ms!important}
+}
 button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
 input,select,textarea{font-family:inherit}
-.app{min-height:100vh;padding-bottom:56px}
-.app.loading{display:flex;align-items:center;justify-content:center;height:100vh;color:var(--muted)}
+::selection{background:var(--gold);color:#15110a}
+.app{min-height:100vh;min-height:100dvh;padding-bottom:56px}
+.app.loading{display:block;padding-bottom:0}
 .muted{color:var(--muted)} .muted-sm{color:var(--muted);font-size:12.5px}
 .cyan{color:var(--cyan)} .coral{color:var(--coral)}
+
+/* ---- دسترس‌پذیری: لینک پرش و حلقهٔ فوکوس ---- */
+.skip-link{
+  position:fixed;top:10px;right:10px;z-index:calc(var(--z-grain) + 1);
+  padding:9px 16px;border-radius:var(--r-md);background:var(--gold);color:#15110a;font-weight:700;
+  transform:translateY(-200%);transition:transform var(--dur) var(--ease);
+}
+.skip-link:focus{transform:none}
+#main-content:focus{outline:none}
+:where(button,a,summary,[role=button],[tabindex]):focus-visible{
+  outline:2px solid var(--gold);outline-offset:2px;
+}
+:where(input,select,textarea):focus-visible{
+  border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-soft);
+}
+/* ورودی‌هایی که داخل یک قاب هستند، حلقه را روی قاب می‌گیرند */
+:where(.search-box,.kw-tags,.login-field,.sort,.link-add):focus-within{
+  border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-soft);
+}
+:where(.search-box,.kw-tags,.login-field,.sort) :where(input,select):focus-visible{box-shadow:none}
 
 /* ---- topbar ---- */
 .topbar{
   display:flex;justify-content:space-between;align-items:center;
-  padding:14px 22px;border-bottom:1px solid var(--line);
-  position:sticky;top:0;background:color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter:blur(12px);z-index:40;
+  padding:12px 24px;border-bottom:1px solid var(--line-soft);
+  position:sticky;top:0;background:color-mix(in srgb, var(--bg) 78%, transparent);
+  backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3);z-index:var(--z-top);
 }
 .topbar-right,.topbar-left{display:flex;align-items:center;gap:12px}
 .icon-btn{
-  width:38px;height:38px;border-radius:10px;border:1px solid var(--line);
-  display:flex;align-items:center;justify-content:center;color:var(--muted);transition:.15s;flex-shrink:0;
+  width:38px;height:38px;border-radius:var(--r-md);border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;color:var(--muted);flex-shrink:0;
+  transition:color var(--dur) var(--ease),border-color var(--dur) var(--ease),background var(--dur) var(--ease),transform .12s;
 }
-.icon-btn:hover{color:var(--gold);border-color:var(--gold)}
-.brand{display:flex;align-items:center;gap:11px}
+.icon-btn:hover{color:var(--gold);border-color:var(--gold);background:var(--gold-soft)}
+.icon-btn:active{transform:scale(.94)}
+.brand{display:flex;align-items:center;gap:12px;text-align:right}
+/* نشان برند: هستهٔ طلایی با مدار و یک ماهوارهٔ کوچک */
 .brand-mark{
-  width:30px;height:30px;border-radius:50%;flex-shrink:0;
-  background:radial-gradient(circle at 35% 30%,var(--gold),#7a5a22);
-  box-shadow:0 0 0 4px rgba(232,176,75,.12),0 0 22px rgba(232,176,75,.4);
+  position:relative;width:34px;height:34px;flex-shrink:0;
+  background:radial-gradient(circle at 50% 50%,#F6D88C 0 2px,var(--gold) 3.5px,#8f6a2a 7px,transparent 7.5px);
+  filter:drop-shadow(0 0 7px rgba(232,176,75,.45));
 }
-.brand b{font-weight:900;font-size:18px;display:block;line-height:1.2}
-.brand em{font-style:normal;color:var(--muted);font-size:12px}
+.brand-mark::before,.brand-mark::after{content:"";position:absolute;border-radius:50%}
+.brand-mark::before{inset:2px;border:1px solid rgba(232,176,75,.5)}
+.brand-mark::after{width:5px;height:5px;background:var(--gold);top:3px;right:4px;box-shadow:0 0 6px var(--gold)}
+.brand b{font-family:var(--font-display);font-weight:400;font-size:24px;display:block;line-height:1.1}
+.brand em{font-style:normal;color:var(--muted);font-size:11.5px}
 .admin-toggle{
   display:flex;align-items:center;gap:6px;font-size:13px;
   padding:8px 14px;border-radius:30px;border:1px solid var(--line);color:var(--muted);
@@ -730,12 +807,13 @@ textarea.ed{min-height:70px;resize:vertical}
 }
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .sidebar{
-  position:fixed;top:0;right:-360px;width:340px;height:100vh;z-index:50;
+  position:fixed;top:0;right:-380px;width:340px;max-width:88vw;height:100vh;height:100dvh;z-index:var(--z-side);
   background:var(--panel);border-inline-start:1px solid var(--line);
   display:flex;flex-direction:column;transition:right .25s ease;
   box-shadow:-20px 0 50px -20px rgba(0,0,0,.5);
 }
 .sidebar.open{right:0}
+.sidebar:not(.open){visibility:hidden;transition:right .3s var(--ease),visibility 0s .3s}
 .sidebar-head{
   display:flex;justify-content:space-between;align-items:center;
   padding:16px 18px;border-bottom:1px solid var(--line);
@@ -1419,7 +1497,7 @@ textarea.ed{min-height:70px;resize:vertical}
 
 /* ---------- login ---------- */
 .login-screen{
-  min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;
+  min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:20px;
 }
 .login-card{
   width:100%;max-width:380px;background:var(--panel);border:1px solid var(--line);
@@ -1549,3 +1627,1021 @@ textarea.ed{min-height:70px;resize:vertical}
 .work-card.is-selected,.work-row.is-selected{
   outline:2px solid var(--gold);outline-offset:-2px;
 }
+
+
+/* =====================================================================
+   لایهٔ پالایش ظاهر (بازطراحی تیره و سینمایی)
+   بعد از قاعده‌های اصلی می‌آید تا بدون تغییر ساختار، آن‌ها را ارتقا بدهد.
+   ===================================================================== */
+
+/* ---- اسکرول‌بار باریک و هم‌رنگ تم ---- */
+*{scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--line);border-radius:10px;border:3px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:var(--faint);background-clip:content-box;border:3px solid transparent}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ---- تایپوگرافی: عنوان‌های نمایشی با لاله‌زار، متن با وزیرمتن.
+        روی حروف فارسی letter-spacing نمی‌گذاریم چون اتصال حروف را می‌شکند ---- */
+.stat-lbl,.range-disp,.sb-section-t,.sm-eyebrow,.foot-line,.stat-val{letter-spacing:0}
+.proj-head h1,.studio-meta h1,.work-info h1,.login-title,.yr-label,.range-disp,.stat-val{
+  font-family:var(--font-display);font-weight:400;
+}
+.proj-head h1{font-size:clamp(30px,4vw,48px);line-height:1.2;margin:8px 0 6px}
+.work-info h1{font-size:clamp(26px,3vw,36px);line-height:1.25;margin:10px 0 18px}
+.studio-meta h1{font-size:clamp(28px,4.4vw,58px);line-height:1.15;margin:6px 0 8px}
+.studio-meta p{font-size:clamp(14px,1.3vw,17px);max-width:46ch}
+.sm-eyebrow,.eyebrow{
+  display:inline-flex;align-items:center;gap:10px;font-size:12.5px;font-weight:700;color:var(--gold);
+}
+.sm-eyebrow::before,.eyebrow::before{content:"";width:22px;height:1px;background:currentColor;opacity:.7}
+.row-head h2,.similar h2{font-size:19px;font-weight:800}
+.stat-val{font-size:40px;line-height:1.05}
+.login-title{font-size:26px;margin-bottom:4px}
+.yr-label{font-size:15px;line-height:1.5;max-width:128px}
+.range-disp{line-height:1.45;text-shadow:0 0 22px rgba(232,176,75,.28)}
+.info-v.big{font-family:var(--font-display);font-weight:400;font-size:26px}
+.info-v,.wr-meta,.sr-sub{text-wrap:pretty}
+.info-v,.work-meta p,.proj-head p{max-width:68ch}
+
+/* ---- دکمه‌ها: بازخورد لمسی در hover و فشردن ---- */
+.btn{
+  border-radius:var(--r-md);
+  transition:background var(--dur) var(--ease),color var(--dur) var(--ease),border-color var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease),filter var(--dur) var(--ease),transform .12s var(--ease);
+}
+.btn:not(:disabled):active,.ctrl-btn:active,.mode-pill:active,.tg:active,.type-chip:active,
+.af-tab:active,.mini:active,.ic-btn:active,.fs-btn:active,.replay-btn:active,.admin-toggle:active{transform:scale(.97)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.gold{
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 12px 26px -16px rgba(232,176,75,.8);
+}
+.btn.gold:hover:not(:disabled){
+  filter:brightness(1.08);transform:translateY(-1px);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 16px 30px -14px rgba(232,176,75,.9);
+}
+.btn.light{background:rgba(255,255,255,.07)}
+.btn.light:hover{background:rgba(255,255,255,.13);border-color:var(--faint)}
+:root[data-theme="light"] .btn.light{background:var(--panel2)}
+:root[data-theme="light"] .btn.light:hover{background:#DDE2EE}
+.btn.ghost:hover{background:var(--gold-soft)}
+.btn.danger-fill{background:var(--coral);color:#1a0b08;box-shadow:0 12px 26px -16px var(--coral)}
+.btn.danger-fill:hover:not(:disabled){filter:brightness(1.08);transform:translateY(-1px)}
+:root[data-theme="light"] .btn.danger-fill{color:#fff}
+.ctrl-btn,.mode-pill,.tg,.type-chip,.af-tab,.mini,.admin-toggle{
+  transition:color var(--dur) var(--ease),border-color var(--dur) var(--ease),background var(--dur) var(--ease),transform .12s var(--ease);
+}
+.ctrl-btn:hover,.mini:hover{background:var(--gold-soft)}
+.mini:hover{border-color:var(--gold)}
+
+/* ---- سطوح: پنل‌ها به‌جای قاب طلایی، لبهٔ نازک و سایهٔ هم‌رنگ زمینه ---- */
+.define-panel,.add-form,.settings-panel,.tool-panel,.node-editor,.modal-card,.cp-card,.errbox,.login-card,
+.pv-block,.gallery-admin,.rp-controls,.wi-type-edit{
+  background:linear-gradient(180deg,color-mix(in srgb,var(--panel2) 55%,var(--panel)) 0%,var(--panel) 38%);
+  border:1px solid var(--line);
+  box-shadow:0 30px 70px -36px rgba(var(--shadow-rgb),.95),inset 0 1px 0 var(--line-soft);
+}
+.tool-panel,.node-editor,.modal-card,.cp-card{border-color:color-mix(in srgb,var(--gold) 30%,var(--line))}
+.tool-panel,.node-editor{animation:panelIn .35s var(--ease)}
+.modal-card,.cp-card{animation:dlgIn .28s var(--ease)}
+.modal-overlay,.cp-overlay{background:rgba(var(--shadow-rgb),.62);backdrop-filter:blur(6px);animation:fadeIn .2s ease}
+@keyframes panelIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes dlgIn{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
+.sidebar{
+  background:var(--glass);backdrop-filter:blur(22px) saturate(1.2);-webkit-backdrop-filter:blur(22px) saturate(1.2);
+  box-shadow:-30px 0 70px -30px rgba(var(--shadow-rgb),.9);
+  transition:right .3s var(--ease);
+}
+.sidebar:not(.open){transition:right .3s var(--ease),visibility 0s .3s}
+.sidebar-backdrop{background:rgba(var(--shadow-rgb),.55);backdrop-filter:blur(2px)}
+.sidebar-head{border-bottom-color:var(--line-soft)}
+.sidebar-head h3{font-family:var(--font-display);font-weight:400;font-size:24px}
+.sb-item{transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+.sb-item.active{box-shadow:inset 3px 0 0 var(--gold)}
+.sb-section-t{font-size:11.5px;color:var(--faint)}
+
+/* ---- کارت آثار: پوستر با زوم ملایم و درخشش لبه ---- */
+.work-card,.work-row{
+  border-color:var(--line-soft);
+  transition:border-color var(--dur) var(--ease),transform .3s var(--ease),box-shadow .3s var(--ease),background var(--dur) var(--ease);
+}
+.work-card{border-radius:var(--r-lg)}
+.work-card:hover{
+  border-color:color-mix(in srgb,var(--gold) 55%,var(--line));transform:translateY(-4px);
+  box-shadow:0 26px 50px -26px rgba(var(--shadow-rgb),.95),0 0 0 1px var(--gold-soft);
+}
+.work-card:active,.work-row:active{transform:translateY(-1px) scale(.992)}
+.work-row:hover{background:var(--panel2)}
+.work-card .media-contain{transition:transform .6s var(--ease)}
+.work-card:hover .media-contain{transform:scale(1.05)}
+.work-meta{padding:14px 16px 16px}
+.work-meta h3{font-size:15px;line-height:1.5}
+.works-grid{grid-template-columns:repeat(auto-fill,minmax(236px,1fr));gap:18px}
+.work-card.is-featured,.work-row.is-featured{outline:1px solid color-mix(in srgb,var(--gold) 35%,transparent)}
+
+/* ---- آمار: کارت شیشه‌ای بدون جداکنندهٔ اضافه ---- */
+.stats-row{gap:14px}
+.stat-card{
+  min-width:180px;padding:24px 30px 20px;gap:6px;border-radius:var(--r-lg);
+  background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.012));
+  border:1px solid var(--line-soft);
+  box-shadow:0 24px 50px -34px rgba(var(--shadow-rgb),.95);
+}
+:root[data-theme="light"] .stat-card{background:var(--panel);border-color:var(--line)}
+.stat-card::before{width:30px;height:2px}
+.stat-lbl{border-top:0;padding-top:2px;color:var(--muted);font-size:12.5px;font-weight:500}
+.stat-val-in,.stat-lbl-in,.stat-descr-in{border-radius:var(--r-sm)}
+
+/* ---- نقشهٔ مداری: هستهٔ آرام‌تر و ظریف‌تر ---- */
+.yr-core{
+  background:radial-gradient(circle at 38% 28%,#222c46 0%,#0b0f18 78%);
+  border:1px solid rgba(232,176,75,.34);
+  box-shadow:0 0 0 8px rgba(232,176,75,.04),0 0 60px -10px rgba(232,176,75,.18),inset 0 0 40px rgba(0,0,0,.55);
+}
+.node{background:radial-gradient(circle at 35% 28%,#2a3558,#121827)}
+.node:hover{box-shadow:0 0 26px rgba(232,176,75,.32)}
+.node-inner-title{color:var(--ink)}
+.resize-h{background:var(--gold);border-color:var(--bg);box-shadow:0 0 0 1px var(--gold)}
+.import-log{color:var(--green);background:rgba(95,203,138,.08)}
+.spoke{stroke:rgba(232,176,75,.2)}
+
+/* ---- تیزر سینمایی: شبیه تیتراژ فیلم ---- */
+.studio-frame{border-block:0;box-shadow:0 40px 90px -44px rgba(var(--shadow-rgb),1)}
+.studio-scrim{
+  background:
+    radial-gradient(120% 90% at 50% 40%,transparent 45%,rgba(0,0,0,.55) 100%),
+    linear-gradient(to top,rgba(0,0,0,.82) 0%,rgba(0,0,0,.2) 34%,transparent 58%),
+    linear-gradient(to left,rgba(0,0,0,.5) 0%,transparent 48%);
+}
+.studio-meta{bottom:clamp(20px,4vw,44px);right:clamp(18px,4vw,56px)}
+.ic-btn{border-radius:var(--r-md);transition:background var(--dur) var(--ease),color var(--dur) var(--ease),transform .12s}
+.teaser-wrap{border-color:var(--line-soft)}
+
+/* ---- ورودی‌ها و جستجو ---- */
+.search-box,.sort,.vmode,.drb-group,.stepper{border-color:var(--line);background:var(--panel)}
+.search-box{border-radius:var(--r-lg);transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
+.search-box input::placeholder,.kw-tags input::placeholder{color:var(--faint)}
+.search-results{border-color:var(--line);box-shadow:0 30px 60px -30px rgba(var(--shadow-rgb),.95);animation:panelIn .2s var(--ease)}
+.sr-row{transition:background var(--dur) var(--ease)}
+.kw-sug,.share-dropdown{box-shadow:0 24px 50px -26px rgba(var(--shadow-rgb),.95)}
+select{cursor:pointer}
+.mode-pill{background:var(--panel);border-color:var(--line)}
+
+/* ---- اعلان (toast): شیشه‌ای با نشانگر طلایی ---- */
+.toast{
+  background:var(--glass);backdrop-filter:blur(16px);border:1px solid var(--line);
+  display:flex;align-items:center;gap:10px;
+  box-shadow:0 20px 44px -20px rgba(var(--shadow-rgb),.95);
+}
+.toast::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 10px var(--gold);flex-shrink:0}
+
+/* ---- اسکلت بارگذاری: شکل صفحه را از قبل نشان می‌دهد ---- */
+.skel{position:relative;overflow:hidden;background:var(--panel);border-radius:var(--r-md);border:1px solid var(--line-soft)}
+.skel::after{
+  content:"";position:absolute;inset:0;transform:translateX(-100%);
+  background:linear-gradient(100deg,transparent 20%,rgba(255,255,255,.07) 50%,transparent 80%);
+  animation:skel 1.5s ease-in-out infinite;
+}
+:root[data-theme="light"] .skel::after{background:linear-gradient(100deg,transparent 20%,rgba(255,255,255,.9) 50%,transparent 80%)}
+@keyframes skel{to{transform:translateX(100%)}}
+.skel-line{height:14px;border-radius:7px}
+.skel-line.w-40{width:40%} .skel-line.w-60{width:60%} .skel-line.w-80{width:80%}
+.skel-circle{border-radius:50%}
+.skel-page{max-width:1060px;margin:0 auto;padding:28px 20px;display:flex;flex-direction:column;gap:18px}
+.skel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(236px,1fr));gap:18px}
+.skel-card{height:240px;border-radius:var(--r-lg)}
+.skel-top{height:62px;border-radius:0;border-width:0 0 1px}
+
+/* ---- وضعیت خالی: دعوت به اقدام، نه فقط یک متن ---- */
+.empty-state{
+  display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;
+  padding:56px 24px;border:1px dashed var(--line);border-radius:var(--r-lg);color:var(--muted);
+  background:radial-gradient(60% 80% at 50% 0%,var(--gold-soft),transparent 70%);
+}
+.empty-state .es-ic{
+  width:54px;height:54px;border-radius:50%;display:grid;place-items:center;margin-bottom:6px;
+  background:var(--gold-soft);color:var(--gold);border:1px solid color-mix(in srgb,var(--gold) 30%,transparent);
+}
+.empty-state h3{font-size:16px;font-weight:800;color:var(--ink)}
+.empty-state p{max-width:42ch;font-size:13.5px}
+.empty-state .btn{margin-top:10px}
+
+/* ---- دیالوگ تأیید/خطا (جایگزین confirm و alert مرورگر) ---- */
+.dlg-overlay{
+  position:fixed;inset:0;z-index:var(--z-dialog);display:flex;align-items:center;justify-content:center;padding:16px;
+  background:rgba(var(--shadow-rgb),.66);backdrop-filter:blur(6px);animation:fadeIn .18s ease;
+}
+.dlg-card{
+  width:100%;max-width:410px;padding:22px 22px 18px;border-radius:var(--r-lg);
+  background:linear-gradient(180deg,color-mix(in srgb,var(--panel2) 55%,var(--panel)),var(--panel) 40%);
+  border:1px solid var(--line);
+  box-shadow:0 40px 90px -36px rgba(var(--shadow-rgb),1),inset 0 1px 0 var(--line-soft);
+  animation:dlgIn .28s var(--ease);
+}
+.dlg-head{display:flex;align-items:center;gap:12px}
+.dlg-ic{
+  width:40px;height:40px;border-radius:12px;flex-shrink:0;display:grid;place-items:center;
+  background:var(--gold-soft);color:var(--gold);
+}
+.dlg-card.danger .dlg-ic{background:color-mix(in srgb,var(--coral) 14%,transparent);color:var(--coral)}
+.dlg-title{font-size:16.5px;font-weight:800;line-height:1.5}
+.dlg-msg{color:var(--muted);font-size:14px;line-height:1.85;margin-top:12px;white-space:pre-line}
+.dlg-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:22px;flex-wrap:wrap}
+
+/* ---- ورود ---- */
+.login-card{border-radius:var(--r-lg);padding:34px 30px}
+.login-screen{
+  background:
+    radial-gradient(60% 50% at 50% 0%,rgba(232,176,75,.09),transparent 70%),
+    radial-gradient(40% 40% at 50% 100%,var(--bg-glow),transparent 70%);
+}
+.login-field{background:var(--bg2);border-radius:var(--r-md)}
+.login-brand b{font-family:var(--font-display);font-weight:400;font-size:26px}
+
+/* ---- هماهنگی سربرگ‌ها و فاصله‌ها ---- */
+.page{padding-top:22px}
+.row-head{margin:40px 0 16px}
+.foot{border-top-color:var(--line-soft)}
+.foot-line{color:var(--faint)}
+
+/* ---- ریسپانسیو ---- */
+@media(max-width:900px){
+  .work-view{grid-template-columns:1fr}
+  .page{padding-inline:18px}
+  .topbar{padding:10px 14px}
+  .brand em{display:none}
+}
+@media(max-width:560px){
+  .home{padding-inline:14px}
+  .home-topbar{padding-inline:14px}
+  .page{padding-inline:14px}
+  .stat-card{min-width:calc(50% - 7px);flex:1 1 calc(50% - 7px);padding:18px 14px}
+  .stat-val{font-size:32px}
+  .works-grid,.skel-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
+  .work-meta{padding:12px}
+  .login-card{padding:26px 20px}
+  .toast{max-width:92vw}
+  .modal-card{padding:16px}
+  .dlg-actions .btn{flex:1;justify-content:center}
+}
+
+/* ---- چاپ: لایه‌های تزئینی حذف شوند ---- */
+@media print{
+  body::after,.skip-link{display:none!important}
+}
+
+
+/* =====================================================================
+   حالت نمایش: ظاهر پلتفرم ویدیو (VOD)
+   هیروی تمام‌عرض → ردیف‌های افقی از پوسترها → آمار در پایین
+   ===================================================================== */
+:root{--gutter:clamp(16px,3.2vw,44px);--vod-chip:color-mix(in srgb,var(--ink) 8%,transparent)}
+
+.page.vod{
+  max-width:none;padding:0 0 56px;position:relative;
+  display:flex;flex-direction:column;
+}
+.vod .studio{order:1;width:100%;margin:0}
+.vod .works-section{order:2;position:relative;z-index:2;margin-top:-28px}
+.vod .stats-section{order:3;width:100%;max-width:1240px;margin:34px auto 0;padding-inline:var(--gutter)}
+
+/* دکمهٔ بازگشت روی هیرو شناور می‌شود */
+.vod .page-top{
+  position:absolute;top:0;right:0;left:0;width:auto;margin:0;z-index:6;
+  padding:18px var(--gutter);pointer-events:none;
+}
+.vod .page-top > *{pointer-events:auto}
+.vod .back{
+  margin:0;padding:8px 16px 8px 14px;border-radius:30px;color:#fff;
+  background:rgba(8,10,15,.5);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.16);
+}
+.vod .back:hover{color:#fff;background:rgba(8,10,15,.72);border-color:var(--gold)}
+
+/* هیرو */
+.vod .studio-frame{aspect-ratio:auto;height:clamp(440px,76vh,780px);max-height:none;box-shadow:none}
+.vod .studio-frame::after{
+  content:"";position:absolute;right:0;left:0;bottom:-1px;height:230px;z-index:1;pointer-events:none;
+  background:linear-gradient(to top,var(--bg) 0%,color-mix(in srgb,var(--bg) 88%,transparent) 22%,
+    color-mix(in srgb,var(--bg) 55%,transparent) 50%,color-mix(in srgb,var(--bg) 18%,transparent) 78%,transparent 100%);
+}
+.vod .studio-meta{bottom:clamp(110px,16vh,160px);right:var(--gutter);max-width:min(660px,88%);z-index:2}
+.vod .studio-controls.floating{bottom:clamp(110px,16vh,160px);left:var(--gutter);z-index:3}
+.vod .studio-meta h1{font-size:clamp(34px,5.4vw,74px);text-shadow:0 4px 30px rgba(0,0,0,.6)}
+.vod-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.vod-chips span{
+  display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:7px;
+  background:rgba(255,255,255,.14);backdrop-filter:blur(8px);color:#fff;font-size:12.5px;font-weight:600;
+}
+.vod-cta{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px;pointer-events:auto}
+.vod-play-btn{padding:13px 26px;font-size:15px;border-radius:12px}
+.vod .studio-meta .btn.light{
+  background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(10px);
+}
+.vod .studio-meta .btn.light:hover{background:rgba(255,255,255,.26);border-color:rgba(255,255,255,.4)}
+
+/* نوار فیلتر */
+.vod-browser{display:flex;flex-direction:column}
+.vod-filters{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:0 var(--gutter) 6px}
+.vod-search{
+  display:flex;align-items:center;gap:8px;flex:0 1 300px;min-width:210px;padding:9px 16px;border-radius:30px;
+  background:var(--vod-chip);border:1px solid var(--line-soft);color:var(--muted);
+  transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease),color var(--dur) var(--ease);
+}
+.vod-search:focus-within{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-soft);color:var(--ink)}
+.vod-search input{flex:1;min-width:0;background:none;border:none;outline:none;color:var(--ink);font-size:14px}
+.vod-search input::placeholder{color:var(--faint)}
+.vod-search input:focus-visible{box-shadow:none}
+.vod-pills{display:flex;gap:8px;flex:1;min-width:0;overflow-x:auto;padding:2px;scrollbar-width:none}
+.vod-pills::-webkit-scrollbar{display:none}
+.vod-pill{
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:8px 18px;border-radius:30px;
+  font-size:13px;font-weight:600;color:var(--muted);background:var(--vod-chip);border:1px solid var(--line-soft);
+  transition:background var(--dur) var(--ease),color var(--dur) var(--ease),transform .12s var(--ease);
+}
+.vod-pill:hover{color:var(--ink);background:color-mix(in srgb,var(--ink) 14%,transparent)}
+.vod-pill:active{transform:scale(.96)}
+.vod-pill.on{background:var(--ink);color:var(--bg);border-color:transparent}
+.vod-pill.star.on{background:var(--gold);color:#15110a}
+
+/* ردیف‌ها */
+.vod-row{margin-top:14px}
+.vod-row-head{display:flex;align-items:baseline;gap:12px;padding:0 var(--gutter);margin-bottom:2px}
+.vod-row-head h2{font-size:clamp(17px,1.7vw,22px);font-weight:800}
+.vod-row-hint{font-size:12.5px;color:var(--faint);opacity:0;transform:translateX(6px);transition:opacity .25s,transform .25s var(--ease)}
+.vod-row:hover .vod-row-hint,.vod-row:focus-within .vod-row-hint,.vod-results .vod-row-hint{opacity:1;transform:none}
+@media(hover:none){.vod-row-hint{opacity:1;transform:none}}
+.vod-row-body{position:relative}
+.vod-scroller{
+  display:flex;gap:14px;overflow-x:auto;overscroll-behavior-x:contain;
+  padding:16px var(--gutter) 28px;scroll-padding-inline:var(--gutter);scroll-snap-type:x proximity;scrollbar-width:none;
+}
+.vod-scroller::-webkit-scrollbar{display:none}
+.vod-arrow{
+  position:absolute;top:16px;bottom:28px;z-index:5;width:clamp(42px,4.2vw,64px);
+  display:flex;align-items:center;justify-content:center;color:#fff;opacity:0;
+  transition:opacity .25s var(--ease),background .25s var(--ease);
+}
+.vod-arrow.prev{right:0;background:linear-gradient(to left,rgba(var(--shadow-rgb),.9),transparent)}
+.vod-arrow.next{left:0;background:linear-gradient(to right,rgba(var(--shadow-rgb),.9),transparent)}
+.vod-row-body:hover .vod-arrow,.vod-arrow:focus-visible{opacity:1}
+.vod-arrow:hover svg{transform:scale(1.2)}
+.vod-arrow svg{transition:transform .2s var(--ease);filter:drop-shadow(0 2px 6px rgba(0,0,0,.6))}
+@media(hover:none){.vod-arrow{display:none}}
+
+/* کارت پوستری */
+.vod-card{
+  flex:0 0 clamp(214px,19vw,292px);scroll-snap-align:start;position:relative;cursor:pointer;
+  transition:transform .4s var(--ease);outline-offset:5px;border-radius:14px;
+}
+.vod-card.wide{flex-basis:clamp(290px,30vw,440px)}
+.vod-card:hover,.vod-card:focus-visible{transform:translateY(-6px) scale(1.035);z-index:4}
+.vod-card:active{transform:translateY(-2px) scale(.99)}
+.vod-thumb{
+  position:relative;aspect-ratio:16/9;border-radius:14px;overflow:hidden;background:var(--panel);
+  border:1px solid var(--line-soft);box-shadow:0 20px 38px -26px rgba(var(--shadow-rgb),1);
+  transition:border-color .3s var(--ease),box-shadow .4s var(--ease);
+}
+.vod-thumb .media-wrap,.vod-thumb .media-ph,.vod-thumb .media-link{height:100%;width:100%;min-height:0}
+.vod-thumb .media-contain{object-fit:cover;transition:transform .8s var(--ease)}
+.vod-card:hover .vod-thumb,.vod-card:focus-visible .vod-thumb{
+  border-color:color-mix(in srgb,var(--gold) 65%,transparent);
+  box-shadow:0 32px 56px -24px rgba(var(--shadow-rgb),1),0 0 0 1px var(--gold-soft);
+}
+.vod-card:hover .media-contain{transform:scale(1.09)}
+.vod-shade{
+  position:absolute;inset:0;pointer-events:none;opacity:.55;
+  background:linear-gradient(to top,rgba(0,0,0,.7) 0%,transparent 55%);transition:opacity .35s var(--ease);
+}
+.vod-card:hover .vod-shade{opacity:1}
+.vod-play{
+  position:absolute;top:50%;left:50%;width:50px;height:50px;border-radius:50%;
+  display:grid;place-items:center;background:rgba(255,255,255,.94);color:#14110a;
+  opacity:0;transform:translate(-50%,-50%) scale(.7);pointer-events:none;
+  box-shadow:0 12px 30px -8px rgba(0,0,0,.7);transition:opacity .3s var(--ease),transform .4s var(--ease);
+}
+.vod-play svg{margin-inline-end:-2px}
+.vod-card:hover .vod-play,.vod-card:focus-visible .vod-play{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.vod-type{
+  position:absolute;top:10px;right:10px;z-index:2;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;
+  background:rgba(8,10,15,.62);backdrop-filter:blur(8px);color:#fff;
+}
+.vod-star{position:absolute;top:10px;left:10px;z-index:2;color:var(--gold);filter:drop-shadow(0 1px 5px rgba(0,0,0,.7))}
+.vod-info{padding:11px 4px 0}
+.vod-info h3{
+  font-size:14.5px;font-weight:700;line-height:1.55;
+  display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;
+}
+.vod-info p{display:flex;align-items:center;gap:10px;margin-top:2px;font-size:12px;color:var(--muted);min-width:0}
+.vod-views{display:inline-flex;align-items:center;gap:4px;flex-shrink:0}
+.vod-sub{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ردیف رتبه‌بندی‌شده: عدد بزرگ توخالی کنار پوستر */
+.vod-card.ranked{flex-basis:clamp(300px,27vw,400px);display:flex;align-items:flex-end}
+.vod-rank{
+  flex-shrink:0;margin-inline-end:-4px;margin-bottom:30px;line-height:.8;padding-inline:4px;
+  font-family:var(--font-display);font-size:clamp(100px,9.5vw,150px);color:transparent;
+  -webkit-text-stroke:2.5px color-mix(in srgb,var(--ink) 55%,transparent);transition:-webkit-text-stroke-color .3s;
+}
+.vod-card.ranked .vod-poster{position:relative;z-index:1;flex:1;min-width:0}
+.vod-card.ranked:hover .vod-rank{-webkit-text-stroke-color:var(--gold)}
+
+/* نتایج جستجو/فیلتر */
+.vod-results{margin-top:10px}
+.vod-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:24px 16px;
+  padding:14px var(--gutter) 34px;
+}
+.vod-grid .vod-card{flex:none}
+.vod-browser .empty-state{margin:10px var(--gutter) 0}
+
+@media(max-width:700px){
+  .vod .studio-frame{height:clamp(400px,68vh,560px)}
+  .vod .studio-controls.floating{display:none}
+  .vod .studio-meta{max-width:calc(100% - 2 * var(--gutter))}
+  .vod-play-btn{padding:11px 20px;font-size:14px}
+  .vod-card{flex-basis:62vw}
+  .vod-card.wide{flex-basis:78vw}
+  .vod-card.ranked{flex-basis:78vw}
+  .vod-filters{gap:10px}
+  .vod-search{flex:1 1 100%}
+  .vod-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:18px 12px}
+}
+
+/* ---- صفحهٔ اثر در حالت نمایش: سالن سینما ---- */
+.page.work-vod{max-width:1280px}
+.work-vod .work-view{grid-template-columns:1fr;gap:30px}
+.work-vod .work-stage{
+  border-radius:var(--r-lg);border-color:var(--line-soft);
+  box-shadow:0 70px 130px -60px rgba(232,176,75,.22),0 40px 90px -40px rgba(var(--shadow-rgb),1);
+}
+.work-vod .work-stage:not(.is-image){min-height:clamp(240px,34vw,460px)}
+.work-vod .work-info{
+  display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:6px 48px;align-items:start;
+}
+.work-vod .work-info > .wi-top,.work-vod .work-info > h1{grid-column:1 / -1}
+.work-vod .work-info h1{font-size:clamp(30px,3.8vw,52px);margin:6px 0 10px}
+.work-vod .pv-block{grid-column:2;grid-row:3 / span 6}
+.work-vod .similar,.work-vod > .vod-row{
+  width:100vw;margin-inline:calc(50% - 50vw);max-width:none;margin-top:44px;
+}
+@media(max-width:900px){
+  .work-vod .work-info{grid-template-columns:1fr}
+  .work-vod .pv-block{grid-column:1;grid-row:auto}
+}
+
+
+/* ---- «نمایش همه»: دکمهٔ سرِ ردیف و صفحهٔ شبکه‌ای ---- */
+.vod-seeall{
+  margin-inline-start:auto;display:inline-flex;align-items:center;gap:6px;align-self:center;
+  padding:6px 8px 6px 12px;border-radius:30px;font-size:13px;font-weight:600;color:var(--muted);
+  transition:color var(--dur) var(--ease),background var(--dur) var(--ease),transform .12s var(--ease);
+}
+.vod-seeall svg{transition:transform .25s var(--ease)}
+.vod-seeall:hover,.vod-seeall:focus-visible{color:var(--gold);background:var(--gold-soft)}
+.vod-seeall:hover svg{transform:translateX(-4px)}
+.vod-seeall:active{transform:scale(.96)}
+.vod-seeall-n{
+  min-width:22px;padding:0 7px;border-radius:20px;text-align:center;font-size:11.5px;font-weight:700;
+  background:var(--vod-chip);color:var(--ink);font-variant-numeric:tabular-nums;
+}
+.vod-seeall:hover .vod-seeall-n{background:var(--gold);color:#15110a}
+
+.vod-seeall-page{padding-top:6px;animation:panelIn .4s var(--ease)}
+.vod-backrow{
+  display:inline-flex;align-items:center;gap:7px;margin:0 var(--gutter) 6px;padding:8px 14px 8px 16px;border-radius:30px;
+  font-size:13.5px;font-weight:600;color:var(--muted);background:var(--vod-chip);border:1px solid var(--line-soft);
+  transition:color var(--dur) var(--ease),border-color var(--dur) var(--ease),background var(--dur) var(--ease);
+}
+.vod-backrow:hover{color:var(--ink);border-color:var(--gold)}
+.vod-backrow svg{transition:transform .25s var(--ease)}
+.vod-backrow:hover svg{transform:translateX(3px)}
+.vod-seeall-head{
+  display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  padding:16px var(--gutter) 4px;
+}
+.vod-seeall-head h2{font-family:var(--font-display);font-weight:400;font-size:clamp(30px,3.6vw,48px);line-height:1.2}
+.vod-seeall-head p{color:var(--muted);font-size:13.5px;margin-top:2px}
+.vod-seeall-head .vod-pills{flex:0 1 auto}
+.vod-grid.wide{grid-template-columns:repeat(auto-fill,minmax(340px,1fr))}
+@media(max-width:700px){
+  .vod-grid.wide{grid-template-columns:1fr}
+  .vod-seeall-head{align-items:flex-start}
+}
+
+.vod-browser{scroll-margin-top:84px}
+
+
+/* =====================================================================
+   باکس آمار: داشبورد اثر (صفحهٔ اثر) و نوار آمار فعالیت
+   ===================================================================== */
+:root{
+  --seg-0:#E8B04B; --seg-1:#5BD6C8; --seg-2:#9B8CFF; --seg-3:#F0705F; --seg-4:#8B93AB;
+}
+:root[data-theme="light"]{
+  --seg-0:#C98A12; --seg-1:#138473; --seg-2:#6A5BE0; --seg-3:#C23A25; --seg-4:#6B7590;
+}
+
+.pv-block.insight{
+  padding:20px;border-radius:var(--r-lg);position:relative;overflow:hidden;
+  background:
+    radial-gradient(120% 70% at 100% 0%,color-mix(in srgb,var(--gold) 9%,transparent),transparent 60%),
+    linear-gradient(180deg,color-mix(in srgb,var(--panel2) 55%,var(--panel)),var(--panel) 45%);
+}
+.pv-block.insight > .info-k{
+  display:flex;align-items:center;gap:10px;margin-bottom:16px;font-size:12px;font-weight:700;color:var(--gold);
+}
+.pv-block.insight > .info-k::before{content:"";width:18px;height:1px;background:currentColor;opacity:.7}
+
+.ins{display:flex;flex-direction:column;gap:16px}
+.ins-metrics{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:10px}
+.ins-metric{
+  display:flex;flex-direction:column;gap:6px;padding:14px 16px;border-radius:var(--r-md);min-width:0;
+  background:var(--vod-chip,rgba(255,255,255,.05));border:1px solid var(--line-soft);
+}
+.ins-metric.main{
+  background:linear-gradient(160deg,color-mix(in srgb,var(--gold) 16%,transparent),color-mix(in srgb,var(--gold) 3%,transparent));
+  border-color:color-mix(in srgb,var(--gold) 32%,transparent);
+}
+.ins-k{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--muted)}
+.ins-metric.main .ins-k{color:var(--gold)}
+.ins-v{
+  font-family:var(--font-display);font-weight:400;font-size:clamp(26px,2.4vw,34px);line-height:1.1;
+  font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.ins-metric.main .ins-v{font-size:clamp(32px,3.2vw,44px)}
+
+.ins-rate{
+  display:flex;align-items:baseline;flex-wrap:wrap;gap:8px;font-size:13px;color:var(--muted);
+  padding:0 2px;
+}
+.ins-rate b{font-size:16px;color:var(--ink);font-variant-numeric:tabular-nums}
+.ins-rate em{font-style:normal;font-size:12px;color:var(--faint)}
+
+.ins-share{display:flex;gap:3px;height:10px;border-radius:10px;overflow:hidden}
+.ins-seg{background:var(--seg);min-width:6px;border-radius:3px;transition:flex-grow .6s var(--ease)}
+
+.ins-list{list-style:none;display:flex;flex-direction:column;gap:8px}
+.ins-row{
+  display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:12px;
+  padding:11px 14px;border-radius:var(--r-md);background:var(--vod-chip,rgba(255,255,255,.05));
+  border:1px solid var(--line-soft);transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease);
+}
+.ins-row:hover{border-color:color-mix(in srgb,var(--seg) 55%,transparent);background:color-mix(in srgb,var(--seg) 7%,transparent)}
+.ins-name{display:flex;flex-direction:column;gap:7px;min-width:0}
+.ins-plat{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:14px;font-weight:700}
+.ins-dot{width:9px;height:9px;border-radius:50%;background:var(--seg);flex-shrink:0;box-shadow:0 0 10px color-mix(in srgb,var(--seg) 70%,transparent)}
+.ins-top{
+  display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:20px;
+  font-size:10.5px;font-weight:700;color:var(--gold);background:var(--gold-soft);
+}
+.ins-bar{display:block;height:5px;border-radius:5px;background:color-mix(in srgb,var(--ink) 8%,transparent);overflow:hidden}
+.ins-bar span{display:block;height:100%;border-radius:5px;background:var(--seg);transition:width .8s var(--ease)}
+.ins-nums{display:flex;align-items:center;gap:14px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ins-nums b{display:inline-flex;align-items:center;gap:5px;color:var(--ink);font-size:14px}
+.ins-nums span{display:inline-flex;align-items:center;gap:4px}
+.ins-share-n{
+  min-width:54px;text-align:center;padding:4px 8px;border-radius:8px;font-size:12px;font-weight:700;
+  color:var(--seg);background:color-mix(in srgb,var(--seg) 12%,transparent);font-variant-numeric:tabular-nums;
+}
+.ins-empty{padding:6px 2px}
+
+@media(max-width:560px){
+  .ins-metrics{grid-template-columns:1fr 1fr}
+  .ins-metric.main{grid-column:1 / -1}
+  .ins-row{grid-template-columns:auto minmax(0,1fr) auto;row-gap:10px}
+  .ins-nums{grid-column:1 / -1;order:5;justify-content:space-between}
+}
+
+/* ---- کنداکتور پخش تلویزیونی (حالت نمایش) ---- */
+.tv-block:not(:has(.pv-card)) > .info-k{
+  display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:12px;font-weight:700;color:var(--gold);
+}
+.tv-block:not(:has(.pv-card)) > .info-k::before{content:"";width:18px;height:1px;background:currentColor;opacity:.7}
+.tv-view-card{
+  position:relative;padding:14px 16px;border-radius:var(--r-md);border:1px solid var(--line-soft);
+  background:var(--vod-chip,rgba(255,255,255,.05));
+}
+.tv-view-card::before{content:"";position:absolute;inset-block:12px;inset-inline-start:0;width:3px;border-radius:3px;background:var(--gold)}
+.tv-date-block.view{border:0;background:none;padding:6px 0 0}
+.tv-date-t{color:var(--muted);font-weight:600}
+.tv-time-chip.view{
+  padding:3px 10px;border-radius:8px;font-weight:700;font-variant-numeric:tabular-nums;
+  background:color-mix(in srgb,var(--gold) 12%,transparent);color:var(--ink);border:1px solid color-mix(in srgb,var(--gold) 28%,transparent);
+}
+
+/* ---- نوار آمار فعالیت (حالت نمایش): یک نوار یکپارچه با خط‌های جداکننده ---- */
+.vod .stats-section .stats-row.centered{
+  gap:0;flex-wrap:wrap;justify-content:stretch;overflow:hidden;border-radius:var(--r-lg);
+  border:1px solid var(--line-soft);
+  background:
+    radial-gradient(100% 140% at 100% 0%,color-mix(in srgb,var(--gold) 8%,transparent),transparent 55%),
+    linear-gradient(180deg,color-mix(in srgb,var(--panel2) 55%,var(--panel)),var(--panel));
+  box-shadow:0 30px 70px -44px rgba(var(--shadow-rgb),1);
+}
+.vod .stats-section .stat-card{
+  flex:1 1 180px;min-width:0;border:0;border-radius:0;background:none;box-shadow:none;
+  padding:28px 20px 24px;border-inline-start:1px solid var(--line-soft);
+}
+.vod .stats-section .stat-card:first-child{border-inline-start:0}
+.vod .stats-section .stat-card::before{display:none}
+.vod .stats-section .stat-val{font-size:clamp(38px,4vw,54px);color:var(--ink)}
+.vod .stats-section .stat-card:first-child .stat-val{color:var(--gold)}
+.vod .stats-section .stat-lbl{font-size:13px;color:var(--muted);padding-top:4px}
+.vod .stats-section .stat-card-view:not(:disabled):hover .stat-val{color:var(--gold)}
+@media(max-width:560px){
+  .vod .stats-section .stat-card{flex:1 1 50%;padding:20px 12px;border-inline-start:0;border-top:1px solid var(--line-soft)}
+  .vod .stats-section .stat-card:nth-child(-n+2){border-top:0}
+}
+
+
+/* =====================================================================
+   صفحهٔ اول: سه نمای ارائه‌ای (سینما / ردیف‌ها / پرده‌ها)
+   جایگزین نقشهٔ مداری؛ همه‌جا از توکن‌های طراحی استفاده می‌کند
+   ===================================================================== */
+.home{padding-top:14px}
+.home-topbar{align-items:center}
+.hs-wrap{width:100vw;margin-inline:calc(50% - 50vw);margin-top:10px;position:relative}
+.hs{position:relative}
+.hs-empty{max-width:760px;margin:30px auto;padding-inline:var(--gutter)}
+
+/* ---- سوئیچ نما ---- */
+.hs-switch{
+  display:inline-flex;gap:2px;padding:4px;border-radius:30px;
+  background:var(--glass);border:1px solid var(--line-soft);backdrop-filter:blur(12px);
+}
+.hs-switch button{
+  display:inline-flex;align-items:center;gap:7px;padding:8px 16px;border-radius:30px;
+  font-size:13px;font-weight:600;color:var(--muted);
+  transition:background var(--dur) var(--ease),color var(--dur) var(--ease),transform .12s var(--ease);
+}
+.hs-switch button:hover:not(.on){color:var(--ink)}
+.hs-switch button:active{transform:scale(.96)}
+.hs-switch button.on{background:var(--ink);color:var(--bg)}
+@media(max-width:620px){.hs-switch button{padding:9px 12px}.hs-switch span{display:none}}
+
+/* ---- کاور مشترک (تصویر + تیزر) ---- */
+.hs-cover{position:absolute;inset:0;overflow:hidden}
+.hs-cover-img,.hs-cover-vid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.hs-cover-vid{opacity:0;transition:opacity .7s var(--ease)}
+.hs-cover-vid.on{opacity:1}
+
+.hs-eyebrow{display:inline-flex;align-items:center;gap:10px;font-size:13px;font-weight:700;color:var(--gold)}
+.hs-eyebrow::before{content:"";width:26px;height:1px;background:currentColor;opacity:.8}
+.hs-sub{font-size:clamp(14px,1.4vw,18px);color:rgba(255,255,255,.86);max-width:50ch;text-wrap:pretty}
+.hs-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.hs-chips span{
+  display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:7px;
+  background:rgba(255,255,255,.14);backdrop-filter:blur(8px);color:#fff;font-size:12.5px;font-weight:600;
+}
+.hs-edit{
+  position:absolute;z-index:6;display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:30px;
+  font-size:12.5px;font-weight:700;color:#fff;background:rgba(8,10,15,.62);backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,.22);transition:background var(--dur) var(--ease),color var(--dur) var(--ease);
+}
+.hs-edit:hover{background:var(--gold);color:#15110a;border-color:transparent}
+
+/* ===== ۱) سینما ===== */
+.hs-cinema{position:relative}
+.hs-stage{
+  position:relative;height:clamp(480px,calc(100vh - 292px),800px);overflow:hidden;isolation:isolate;outline:none;
+  --mx:50%;--my:50%;--px:0;--py:0;touch-action:pan-y;
+}
+.hs-stage:focus-visible{outline:2px solid var(--gold);outline-offset:-4px}
+.hs-slide{
+  position:absolute;inset:0;opacity:0;visibility:hidden;
+  transition:opacity 1s var(--ease),visibility 0s 1s;
+}
+.hs-slide.is-active{opacity:1;visibility:visible;transition:opacity 1s var(--ease)}
+.hs-slide .hs-cover{
+  transform:translate3d(calc(var(--px) * -24px),calc(var(--py) * -14px),0) scale(1.08);
+  transition:transform .5s ease-out;
+}
+.hs-slide.is-active .hs-cover-img,.hs-slide.is-active .hs-cover-vid{animation:hsKen 16s ease-out both}
+@keyframes hsKen{from{transform:scale(1.14)}to{transform:scale(1.02)}}
+.hs-scrim{
+  position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:
+    linear-gradient(to top,var(--bg) 0%,color-mix(in srgb,var(--bg) 70%,transparent) 14%,transparent 42%),
+    linear-gradient(to left,rgba(0,0,0,.78) 0%,rgba(0,0,0,.34) 48%,transparent 82%),
+    radial-gradient(130% 100% at 50% 40%,transparent 50%,rgba(0,0,0,.5) 100%);
+}
+.hs-spot{
+  position:absolute;inset:0;z-index:1;pointer-events:none;mix-blend-mode:screen;opacity:0;transition:opacity .5s;
+  background:radial-gradient(560px circle at var(--mx) var(--my),rgba(232,176,75,.2),transparent 62%);
+}
+.hs-stage:hover .hs-spot{opacity:1}
+.hs-content{
+  position:absolute;z-index:3;right:var(--gutter);bottom:clamp(120px,19vh,190px);max-width:min(680px,88%);color:#fff;
+  transform:translate3d(calc(var(--px) * 12px),calc(var(--py) * 7px),0);transition:transform .5s ease-out;
+}
+.hs-title{
+  font-family:var(--font-display);font-weight:400;font-size:clamp(42px,6.4vw,100px);line-height:1.08;
+  margin:12px 0 8px;text-shadow:0 8px 44px rgba(0,0,0,.6);
+}
+.hs-r{opacity:0}
+.is-active .hs-r{animation:hsRise .95s var(--ease) both;animation-delay:calc(var(--d) * 110ms + 260ms)}
+@keyframes hsRise{from{opacity:0;transform:translateY(26px);filter:blur(8px)}to{opacity:1;transform:none;filter:blur(0)}}
+.hs-cta{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px}
+.hs-main{padding:14px 28px;font-size:15px;border-radius:14px}
+.hs-content .btn.light{background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(10px)}
+.hs-content .btn.light:hover{background:rgba(255,255,255,.27)}
+.hs-stage .hs-edit{top:46px;left:var(--gutter)}
+.hs-big{
+  position:absolute;z-index:2;left:var(--gutter);top:clamp(96px,16vh,150px);pointer-events:none;line-height:.8;
+  font-family:var(--font-display);font-size:clamp(110px,15vw,240px);color:transparent;
+  -webkit-text-stroke:1.5px rgba(255,255,255,.26);font-variant-numeric:tabular-nums;
+}
+
+.hs-bars{position:absolute;z-index:5;top:16px;inset-inline:var(--gutter);display:flex;gap:8px}
+.hs-bar{position:relative;flex:1;height:22px;cursor:pointer}
+.hs-bar::before{content:"";position:absolute;inset-inline:0;top:50%;height:3px;margin-top:-1.5px;border-radius:3px;background:rgba(255,255,255,.28)}
+.hs-bar i{position:absolute;right:0;top:50%;height:3px;margin-top:-1.5px;border-radius:3px;width:0;background:#fff}
+.hs-bar.done i{width:100%}
+.hs-bar.on i{background:var(--gold);animation:hsFill 9s linear forwards}
+.hs-stage.manual .hs-bar.on i{animation:none;width:100%}
+@keyframes hsFill{from{width:0}to{width:100%}}
+.hs-arrows{position:absolute;z-index:5;left:var(--gutter);bottom:clamp(116px,18vh,176px);display:flex;gap:8px}
+.hs-ic{
+  width:44px;height:44px;border-radius:50%;display:grid;place-items:center;color:#fff;
+  background:rgba(8,10,15,.5);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.2);
+  transition:background var(--dur) var(--ease),color var(--dur) var(--ease),transform .12s var(--ease);
+}
+.hs-ic:hover{background:var(--gold);color:#15110a;border-color:transparent}
+.hs-ic:active{transform:scale(.92)}
+
+/* فیلم‌استریپ زیر هیرو، با هم‌پوشانی */
+.hs-strip{
+  position:relative;z-index:4;display:flex;gap:14px;align-items:flex-start;overflow-x:auto;
+  padding:14px var(--gutter) 22px;margin-top:-104px;scrollbar-width:none;scroll-padding-inline:var(--gutter);
+}
+.hs-strip::-webkit-scrollbar{display:none}
+.hs-thumb{
+  flex:0 0 clamp(172px,15vw,236px);display:flex;flex-direction:column;gap:7px;text-align:right;opacity:.78;
+  transition:transform .4s var(--ease),opacity .3s var(--ease);
+}
+.hs-thumb:hover,.hs-thumb.on{opacity:1}
+.hs-thumb:hover{transform:translateY(-6px)}
+.hs-thumb-frame{
+  position:relative;display:block;aspect-ratio:16/9;border-radius:13px;overflow:hidden;
+  border:2px solid rgba(255,255,255,.16);box-shadow:0 20px 36px -22px rgba(0,0,0,.95);
+  transition:border-color .3s var(--ease),box-shadow .4s var(--ease);
+}
+.hs-thumb.on .hs-thumb-frame{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold),0 22px 44px -20px rgba(232,176,75,.55)}
+.hs-thumb-n{
+  position:absolute;top:7px;right:8px;z-index:2;padding:1px 8px;border-radius:6px;font-size:11px;font-weight:700;color:#fff;
+  background:rgba(8,10,15,.62);backdrop-filter:blur(6px);
+}
+.hs-thumb-t{font-size:13.5px;font-weight:700;line-height:1.5;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.hs-thumb-d{font-size:11.5px;color:var(--muted);margin-top:-5px}
+
+/* ===== ۲) ردیف‌ها ===== */
+.hs-rows{display:flex;flex-direction:column;gap:2px;padding:10px 0 44px}
+.hs-actrow{
+  position:relative;opacity:0;transform:translateY(36px);
+  transition:opacity .9s var(--ease),transform 1s var(--ease);transition-delay:calc(var(--i) * 80ms);
+}
+.hs-actrow.seen{opacity:1;transform:none}
+.hs-actrow .vod-row-head h2{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,2.8vw,40px);line-height:1.2}
+.hs-actrow .vod-row-hint{opacity:1;transform:none}
+.hs-actrow .vod-scroller{align-items:flex-start}
+.hs-actrow > .hs-edit{top:50px;left:var(--gutter)}
+.hs-lead{
+  position:relative;flex:0 0 clamp(300px,31vw,470px);aspect-ratio:16/9;border-radius:18px;overflow:hidden;cursor:pointer;
+  scroll-snap-align:start;border:1px solid var(--line-soft);box-shadow:0 28px 54px -32px rgba(var(--shadow-rgb),1);
+  transition:transform .5s var(--ease),box-shadow .5s var(--ease),border-color .3s var(--ease);outline-offset:5px;
+}
+.hs-lead:hover,.hs-lead:focus-visible{
+  transform:translateY(-7px) scale(1.03);z-index:4;border-color:color-mix(in srgb,var(--gold) 70%,transparent);
+  box-shadow:0 38px 70px -30px rgba(var(--shadow-rgb),1),0 0 0 1px var(--gold-soft),0 0 60px -14px rgba(232,176,75,.4);
+}
+.hs-lead:active{transform:translateY(-2px) scale(.99)}
+.hs-lead .hs-cover-img{transition:transform .9s var(--ease)}
+.hs-lead:hover .hs-cover-img{transform:scale(1.08)}
+.hs-lead-shade{position:absolute;inset:0;z-index:1;background:linear-gradient(to top,rgba(0,0,0,.86) 0%,rgba(0,0,0,.1) 62%)}
+.hs-lead-badge{
+  position:absolute;top:12px;right:12px;z-index:2;display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:7px;
+  font-size:11px;font-weight:700;color:#fff;background:rgba(8,10,15,.62);backdrop-filter:blur(8px);
+}
+.hs-lead-meta{position:absolute;z-index:2;right:16px;left:16px;bottom:14px;display:flex;flex-direction:column;color:#fff}
+.hs-lead-meta b{font-family:var(--font-display);font-weight:400;font-size:clamp(20px,2vw,29px);line-height:1.25}
+.hs-lead-meta em{font-style:normal;font-size:12px;color:rgba(255,255,255,.78)}
+.hs-lead .vod-play{z-index:3}
+.hs-lead:hover .vod-play,.hs-lead:focus-visible .vod-play{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.hs-lead.has-vid:hover .vod-play{opacity:0}
+
+/* ===== ۳) پرده‌ها ===== */
+.hs-panels{display:flex;gap:10px;height:clamp(480px,74vh,760px);margin:10px var(--gutter) 44px}
+.hs-panel{
+  position:relative;flex:1 1 0;min-width:70px;border-radius:24px;overflow:hidden;cursor:pointer;isolation:isolate;outline-offset:3px;
+  border:1px solid var(--line-soft);transition:flex-grow .85s var(--ease),border-color .4s var(--ease),box-shadow .6s var(--ease);
+}
+.hs-panel.on{flex-grow:7;border-color:color-mix(in srgb,var(--gold) 55%,transparent);box-shadow:0 40px 90px -44px rgba(232,176,75,.45)}
+.hs-panel .hs-cover-img{transition:transform 1.2s var(--ease)}
+.hs-panel.on .hs-cover-img{transform:scale(1.06)}
+.hs-panel-shade{
+  position:absolute;inset:0;z-index:1;transition:background .6s var(--ease);
+  background:linear-gradient(to top,rgba(0,0,0,.88),rgba(0,0,0,.16) 58%,rgba(0,0,0,.34));
+}
+.hs-panel:not(.on) .hs-panel-shade{background:linear-gradient(to top,rgba(0,0,0,.8),rgba(0,0,0,.5))}
+.hs-panel-n{position:absolute;z-index:2;top:18px;right:20px;font-family:var(--font-display);font-size:34px;line-height:1;color:rgba(255,255,255,.92)}
+.hs-panel-v{
+  position:absolute;z-index:2;right:50%;bottom:24px;transform:translateX(50%);
+  writing-mode:vertical-rl;white-space:nowrap;max-height:calc(100% - 110px);overflow:hidden;text-overflow:ellipsis;
+  font-family:var(--font-display);font-size:clamp(22px,2vw,30px);color:#fff;transition:opacity .35s var(--ease);
+}
+.hs-panel.on .hs-panel-v{opacity:0}
+.hs-panel-body{
+  position:absolute;z-index:2;right:clamp(20px,3vw,46px);left:clamp(20px,3vw,46px);bottom:clamp(22px,3vw,42px);color:#fff;
+  opacity:0;transform:translateY(26px);pointer-events:none;
+  transition:opacity .45s var(--ease),transform .5s var(--ease);
+}
+.hs-panel.on .hs-panel-body{opacity:1;transform:none;pointer-events:auto;transition:opacity .7s var(--ease) .25s,transform .9s var(--ease) .25s}
+.hs-panel-title{font-family:var(--font-display);font-weight:400;font-size:clamp(34px,4.6vw,72px);line-height:1.1;margin:8px 0;text-shadow:0 6px 36px rgba(0,0,0,.55)}
+.hs-panel-go{
+  display:inline-flex;align-items:center;gap:8px;margin-top:22px;padding:12px 24px;border-radius:30px;
+  background:var(--gold);color:#15110a;font-weight:700;font-size:14px;box-shadow:0 14px 30px -14px rgba(232,176,75,.8);
+}
+.hs-panel-go svg{transition:transform .3s var(--ease)}
+.hs-panel:hover .hs-panel-go svg{transform:translateX(-5px)}
+.hs-panel .hs-edit{top:16px;left:16px}
+
+@media(max-width:760px){
+  .hs-panels{flex-direction:column;height:auto}
+  .hs-panel{flex:none;min-width:0;height:96px;transition:height .8s var(--ease),border-color .4s,box-shadow .6s}
+  .hs-panel.on{height:min(460px,64vh)}
+  .hs-panel-v{writing-mode:horizontal-tb;right:70px;left:16px;bottom:auto;top:50%;transform:translateY(-50%);max-height:none;font-size:22px}
+  .hs-big{display:none}
+  .hs-arrows{display:none}
+  .hs-strip{margin-top:-70px}
+  .hs-content{bottom:110px}
+}
+
+/* حرکت کم: افکت‌ها حذف می‌شوند ولی محتوا باید دیده شود */
+@media(prefers-reduced-motion:reduce){
+  .hs-r,.hs-actrow{opacity:1!important;transform:none!important;filter:none!important}
+  .hs-slide .hs-cover,.hs-content{transform:none!important}
+  .hs-spot{display:none}
+}
+
+
+/* =====================================================================
+   کنترل‌های صفحهٔ اول داخل هدر + هیروی تمام‌قد زیر هدر شفاف
+   ===================================================================== */
+.topbar{
+  gap:16px;color:var(--ink);
+  --hc-bg:var(--vod-chip);--hc-ink:var(--ink);--hc-line:var(--line-soft);--hc-mut:var(--muted);
+}
+.topbar-slot{flex:1;min-width:0;display:flex;justify-content:center}
+.topbar-slot:empty{display:none}
+.hdr-controls{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;min-width:0}
+.hdr-group{
+  display:flex;align-items:center;gap:6px;padding:4px;border-radius:30px;min-width:0;
+  background:var(--hc-bg);border:1px solid var(--hc-line);color:var(--hc-ink);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+}
+.hdr-title{font-family:var(--font-display);font-size:21px;line-height:1.1;padding-inline:14px 8px;white-space:nowrap}
+.hdr-btn{
+  display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:30px;white-space:nowrap;
+  font-size:12.5px;font-weight:600;color:var(--hc-ink);background:color-mix(in srgb,var(--hc-ink) 11%,transparent);
+  transition:background var(--dur) var(--ease),color var(--dur) var(--ease),transform .12s var(--ease);
+}
+.hdr-btn:hover{background:var(--gold);color:#15110a}
+.hdr-btn:active{transform:scale(.96)}
+.hdr-btn.accent{background:var(--gold);color:#15110a}
+.hdr-btn.accent:hover{filter:brightness(1.08)}
+.hdr-btn.is-static{cursor:default}
+.hdr-btn.is-static:hover{background:color-mix(in srgb,var(--hc-ink) 11%,transparent);color:var(--hc-ink)}
+
+/* بازهٔ زمانی (حالت تاریخ) */
+.hdr-range{padding:4px 14px}
+.hdr-range select{
+  background:transparent;border:0;color:var(--hc-ink);font-weight:700;font-size:13px;padding:6px 2px;cursor:pointer;outline:none;
+}
+.hdr-range select option{background:var(--panel);color:var(--ink)}
+.hdr-range .drb-tag{color:var(--hc-mut);font-size:12px}
+.hdr-range .drb-arrow{color:var(--gold);margin-inline:4px}
+
+/* جستجو */
+.hdr-search{width:250px;max-width:100%}
+.hdr-search .search-box{
+  background:var(--hc-bg);border:1px solid var(--hc-line);border-radius:30px;padding:8px 15px;
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+}
+.hdr-search .search-box input{color:var(--hc-ink);font-size:13.5px}
+.hdr-search .search-box input::placeholder{color:var(--hc-mut)}
+.hdr-search .search-box .muted,.hdr-search .x-btn{color:var(--hc-mut)}
+.hdr-search .search-results{z-index:var(--z-pop);color:var(--ink)}
+.hdr-search .no-res{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-top:6px;color:var(--muted)}
+
+/* لیست کشویی نما */
+.hs-dd{position:relative}
+.hs-dd-btn{
+  display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:30px;font-size:13px;font-weight:700;
+  background:var(--hc-bg,var(--vod-chip));color:var(--hc-ink,var(--ink));border:1px solid var(--hc-line,var(--line-soft));
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease),transform .12s var(--ease);
+}
+.hs-dd-btn:hover,.hs-dd-btn[aria-expanded="true"]{border-color:var(--gold)}
+.hs-dd-btn:active{transform:scale(.97)}
+.hs-dd-chev{opacity:.7;transition:transform .25s var(--ease)}
+.hs-dd-chev.open{transform:rotate(180deg)}
+.hs-dd-menu{
+  position:absolute;top:calc(100% + 8px);inset-inline-start:0;z-index:70;min-width:260px;padding:6px;list-style:none;
+  border-radius:18px;background:color-mix(in srgb,var(--panel) 94%,transparent);border:1px solid var(--line);color:var(--ink);
+  backdrop-filter:blur(22px) saturate(1.2);-webkit-backdrop-filter:blur(22px) saturate(1.2);
+  box-shadow:0 34px 70px -30px rgba(var(--shadow-rgb),1);animation:panelIn .2s var(--ease);
+}
+.hs-dd-menu button{
+  display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;border-radius:12px;text-align:right;color:var(--ink);
+  transition:background var(--dur) var(--ease);
+}
+.hs-dd-menu button:hover,.hs-dd-menu button.on{background:var(--gold-soft)}
+.hs-dd-ic{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;flex-shrink:0;background:var(--vod-chip);color:var(--gold)}
+.hs-dd-tx{display:flex;flex-direction:column;flex:1;min-width:0;line-height:1.45}
+.hs-dd-tx b{font-size:14px;font-weight:700}
+.hs-dd-tx em{font-style:normal;font-size:11.5px;color:var(--muted)}
+.hs-dd-ck{color:var(--gold);flex-shrink:0}
+
+/* ---- حالت هیرو: هدر شفاف و ثابت روی تیزر؛ با اسکرول جامد می‌شود ---- */
+:root{--hero-top:16px}
+[data-hero]{--hero-top:96px}
+[data-hero] .topbar{
+  position:fixed;top:0;right:0;left:0;background:transparent;border-bottom-color:transparent;
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+  transition:background .35s var(--ease),border-color .35s var(--ease),backdrop-filter .35s var(--ease);
+}
+[data-hero] .topbar.scrolled{
+  background:color-mix(in srgb,var(--bg) 80%,transparent);border-bottom-color:var(--line-soft);
+  backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3);
+}
+[data-hero] .topbar:not(.scrolled){
+  color:#fff;--hc-bg:rgba(8,10,15,.4);--hc-ink:#fff;--hc-line:rgba(255,255,255,.22);--hc-mut:rgba(255,255,255,.72);
+}
+[data-hero] .topbar:not(.scrolled) .brand em{color:rgba(255,255,255,.74)}
+[data-hero] .topbar:not(.scrolled) .icon-btn{color:#fff;background:rgba(8,10,15,.38);border-color:rgba(255,255,255,.26)}
+[data-hero] .home{padding-top:0}
+[data-hero] .hs-wrap{margin-top:0}
+
+/* هیرو از بالای صفحه شروع می‌شود */
+.hs-stage{height:clamp(520px,calc(100vh - 110px),900px)}
+.hs-scrim{
+  background:
+    linear-gradient(to bottom,rgba(0,0,0,.66) 0%,transparent 26%),
+    linear-gradient(to top,var(--bg) 0%,color-mix(in srgb,var(--bg) 70%,transparent) 14%,transparent 42%),
+    linear-gradient(to left,rgba(0,0,0,.78) 0%,rgba(0,0,0,.34) 48%,transparent 82%),
+    radial-gradient(130% 100% at 50% 40%,transparent 50%,rgba(0,0,0,.5) 100%);
+}
+.hs-bars{top:var(--hero-top)}
+.hs-stage .hs-edit{top:calc(var(--hero-top) + 30px)}
+.hs-big{top:calc(var(--hero-top) + 60px)}
+
+@media(max-width:900px){
+  .topbar{flex-wrap:wrap;row-gap:10px}
+  .topbar-slot{order:3;flex:1 1 100%}
+  .hdr-search{flex:1 1 180px}
+  .hdr-lbl{display:none}
+  [data-hero]{--hero-top:150px}
+}
+@media(max-width:560px){
+  .hdr-title{font-size:18px}
+  .hdr-range{padding-inline:10px;flex-wrap:wrap;justify-content:center}
+}
+
+
+/* ---- صفحهٔ داخلی فعالیت (حالت نمایش): هیرو هم‌شکل صفحهٔ اول، از بالای صفحه و زیر هدر شفاف ---- */
+.hdr-controls.is-start{flex:1;justify-content:flex-start}
+.vod .page-top{display:none}
+.vod .studio-frame{height:clamp(520px,calc(100vh - 30px),920px)}
+.vod .studio-scrim{
+  background:
+    linear-gradient(to bottom,rgba(0,0,0,.66) 0%,transparent 26%),
+    radial-gradient(120% 90% at 50% 40%,transparent 45%,rgba(0,0,0,.55) 100%),
+    linear-gradient(to top,rgba(0,0,0,.82) 0%,rgba(0,0,0,.2) 34%,transparent 58%),
+    linear-gradient(to left,rgba(0,0,0,.5) 0%,transparent 48%);
+}
+.vod .studio-video{animation:hsKen 16s ease-out both}
+.vod .studio-meta .sm-eyebrow,.vod .studio-meta h1,.vod .studio-meta p,.vod .vod-chips,.vod .vod-cta{
+  animation:hsRise .95s var(--ease) both;
+}
+.vod .studio-meta h1{animation-delay:.12s}
+.vod .studio-meta p{animation-delay:.24s}
+.vod .vod-chips{animation-delay:.34s}
+.vod .vod-cta{animation-delay:.44s}
+@media(prefers-reduced-motion:reduce){.vod .studio-video{animation:none}}
+
+
+/* ---- فیلتر کشویی آثار (صفحهٔ فعالیت) ---- */
+.vod-dd .hs-dd-btn{padding:10px 16px;font-weight:600}
+.vod-dd .hs-dd-btn b{font-weight:700}
+.vod-dd .vod-dd-k{color:var(--muted);font-weight:500}
+.vod-dd .hs-dd-btn.is-active{border-color:color-mix(in srgb,var(--gold) 60%,transparent);background:var(--gold-soft)}
+.vod-dd .hs-dd-btn.is-active b{color:var(--gold)}
+.vod-dd .hs-dd-menu{min-width:230px}
+.vod-dd .hs-dd-menu button{padding:10px 14px}
+.vod-dd .hs-dd-menu .hs-dd-ic{width:30px;height:30px;border-radius:9px}
+.vod-dd-sep{height:1px;margin:6px 10px;background:var(--line-soft);list-style:none}
+.vod-clear{
+  display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:30px;font-size:12.5px;font-weight:600;color:var(--muted);
+  transition:color var(--dur) var(--ease),background var(--dur) var(--ease);
+}
+.vod-clear:hover{color:var(--coral);background:color-mix(in srgb,var(--coral) 10%,transparent)}

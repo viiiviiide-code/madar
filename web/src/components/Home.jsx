@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
-  Search, X, Plus, Minus, ArrowRight, ArrowLeft, Bold, LogIn, Trash2, Save, Type, Menu,
-  CalendarRange, Layers, Edit3, Copy, LayoutGrid, ChevronDown, BarChart3, Lock,
+  Search, X, Plus, ArrowRight, ArrowLeft, LogIn, Trash2, Save,
+  Layers, Edit3, Copy, ChevronDown, BarChart3, Lock,
 } from "lucide-react";
 import { api } from "../api";
 import {
@@ -9,6 +10,8 @@ import {
 } from "../jalali";
 import JalaliInput from "./JalaliInput.jsx";
 import UserManagement from "./UserManagement.jsx";
+import { confirmDialog } from "./Dialog.jsx";
+import HomeStage, { StageSwitcher, STAGE_MODES, normalizeStageMode } from "./HomeStage.jsx";
 
 export const TEMPLATE_FONTS = [
   { key: "Vazirmatn", label: "وزیرمتن" },
@@ -16,29 +19,37 @@ export const TEMPLATE_FONTS = [
   { key: "Samim",     label: "صمیم" },
   { key: "Shabnam",   label: "شبنم" },
 ];
+// تم هر تمپلیت حالا یکی از نمای‌های صفحهٔ اول است؛ مقدار خالی یعنی نمای پیش‌فرض سایت
 export const TEMPLATE_THEMES = [
-  { key: "orbit",  label: "دایره‌ای (مداری)" },
-  { key: "square", label: "مربعی" },
-  { key: "card",   label: "کارتی" },
+  { key: "", label: "پیش‌فرض سایت" },
+  ...STAGE_MODES.map((m) => ({ key: m.key, label: `${m.label} — ${m.hint}` })),
 ];
 
 export default function Home({
   settings, updateSetting, admin, isOwner, mode, setMode,
-  templates, reloadTemplates, homeTool, setHomeTool, openProject, openSidebar, openReport,
+  templates, reloadTemplates, homeTool, setHomeTool, openProject, openWork, openSidebar, openReport,
   onProjectsChanged,
 }) {
-  const orbits = Math.max(1, +(settings.orbits || 3));
-  const labelFont = +(settings.range_label_font || 13);
-  const anim = {
-    pulse: settings.anim_pulse !== "0",
-    float: settings.anim_float !== "0",
-    twinkle: settings.anim_twinkle !== "0",
-  };
+  const autoplay = settings.home_autoplay !== "0";
 
   const isTemplate = mode?.type === "template";
   const isNone = mode?.type === "none";
   const activeTemplate = isTemplate ? templates.find((t) => String(t.id) === String(mode.id)) : null;
   const [tplEditTarget, setTplEditTarget] = useState(null);
+
+  // نمای صفحهٔ اول: انتخاب خود کاربر (روی همین دستگاه، جدا برای هر حالت) > تم تمپلیت > پیش‌فرض سایت > سینما
+  const scopeKey = isTemplate ? `tpl-${mode.id}` : isNone ? "all" : "date";
+  const readView = (k) => { try { return normalizeStageMode(localStorage.getItem(`madar_home_view:${k}`)); } catch { return null; } };
+  const [override, setOverride] = useState(() => readView(scopeKey));
+  useEffect(() => { setOverride(readView(scopeKey)); }, [scopeKey]);
+  const view = override
+    || (isTemplate ? normalizeStageMode(activeTemplate?.theme) : null)
+    || normalizeStageMode(settings.home_view)
+    || "cinema";
+  const pickView = (k) => {
+    setOverride(k);
+    try { localStorage.setItem(`madar_home_view:${scopeKey}`, k); } catch {}
+  };
 
   // same lock rule as ProjectPage/WorkPage: a locked template's activities can only
   // be dragged/edited/deleted from this canvas by the archive owner. everyone else
@@ -63,9 +74,11 @@ export default function Home({
   const load = useCallback(() => {
     const p = isTemplate
       ? api.projects({ templateId: mode.id })
-      : api.projects({ from: fromISO, to: toISO });
+      : isNone
+        ? api.projects({})
+        : api.projects({ from: fromISO, to: toISO });
     return p.then((x) => setProjects(Array.isArray(x) ? x : [])).catch(() => setProjects([]));
-  }, [isTemplate, mode?.id, fromISO, toISO]);
+  }, [isTemplate, isNone, mode?.id, fromISO, toISO]);
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => { if (!admin) { setEditId(null); setHomeTool(null); } }, [admin]);
@@ -94,80 +107,6 @@ export default function Home({
     });
   };
 
-  /* ---- drag / resize (crash-safe) ---- */
-  const squareRef = useRef(null);
-  const drag = useRef(null);
-  const suppressClick = useRef(false);
-
-  const onMove = useCallback((e) => {
-    const d = drag.current;                 // capture once; updater runs async
-    if (!d || !squareRef.current) return;
-    const r = squareRef.current.getBoundingClientRect();
-    const px = ((e.clientX - r.left) / r.width) * 100;
-    const py = ((e.clientY - r.top)  / r.height) * 100;
-    if (Math.abs(e.clientX - d.sx) + Math.abs(e.clientY - d.sy) > 4) d.moved = true;
-    setProjects((ps) =>
-      ps.map((p) => {
-        if (!p || p.id !== d.id) return p;
-        if (d.mode === "move") {
-          return { ...p, node_x: Math.min(93, Math.max(7, px)), node_y: Math.min(93, Math.max(7, py)) };
-        }
-        const dx = (px - p.node_x) / 100 * r.width;
-        const dy = (py - p.node_y) / 100 * r.height;
-        return { ...p, node_size: Math.min(120, Math.max(36, Math.hypot(dx, dy) * 2)) };
-      })
-    );
-  }, []);
-
-  const onUp = useCallback(() => {
-    window.removeEventListener("pointermove", onMove);
-    window.removeEventListener("pointerup", onUp);
-    const d = drag.current;
-    drag.current = null;
-    if (!d) return;
-    suppressClick.current = d.moved;
-    if (d.moved) persist(d.id);
-  }, [onMove]);
-
-  const onPointerDown = (e, p, m) => {
-    if (!canManageProject(p)) return;
-    e.preventDefault(); e.stopPropagation();
-    drag.current = { id: p.id, mode: m, moved: false, sx: e.clientX, sy: e.clientY };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-  };
-
-  const onNodeClick = (p) => {
-    if (suppressClick.current) { suppressClick.current = false; return; }
-    if (admin) setEditId(p.id);
-    else openProject(p.id);
-  };
-
-  /* card theme: snap all current cards into a tidy grid (still freely draggable afterwards) */
-  const autoArrangeGrid = async () => {
-    const list = projects.filter(Boolean);
-    if (!list.length) return;
-    const cols = Math.max(1, Math.min(4, Math.ceil(Math.sqrt(list.length))));
-    const rows = Math.ceil(list.length / cols);
-    const xStep = 86 / Math.max(1, cols - 1 || 1);
-    const yStep = 76 / Math.max(1, rows - 1 || 1);
-    const updated = list.map((p, i) => {
-      const col = i % cols, row = Math.floor(i / cols);
-      const node_x = cols === 1 ? 50 : 7 + col * xStep;
-      const node_y = rows === 1 ? 46 : 12 + row * yStep;
-      return { ...p, node_x, node_y };
-    });
-    setProjects(updated);
-    await Promise.all(updated.map((p) =>
-      api.updateProject(p.id, {
-        title: p.title, sub: p.sub, start_date: p.start_date, end_date: p.end_date,
-        node_x: p.node_x, node_y: p.node_y, node_size: p.node_size,
-        node_font: p.node_font, node_bold: p.node_bold, template_id: p.template_id,
-      })
-    ));
-    flash("چیدمان شبکه‌ای اعمال شد ✓");
-  };
-
   /* ---- search ---- */
   const [q, setQ] = useState("");
   const [searchAll, setSearchAll] = useState([]);
@@ -193,8 +132,18 @@ export default function Home({
   };
 
   const editing = editId ? projects.find((p) => p.id === editId) : null;
-  const rings = Array.from({ length: orbits }, (_, i) => 12 + (i + 1) * (38 / orbits));
-  const theme = isTemplate ? (activeTemplate?.theme || "orbit") : "orbit";
+
+  // جایگاه کنترل‌ها در هدر (App آن را می‌سازد)
+  const [slot, setSlot] = useState(null);
+  useEffect(() => { setSlot(document.getElementById("topbar-slot")); }, []);
+
+  // نمای سینما: تیزر از بالای صفحه و زیر هدر شفاف شروع می‌شود. وقتی پنل مدیر باز است، هدر معمولی می‌شود
+  const heroMode = view === "cinema" && !homeTool && !editing && projects.length > 0;
+  useEffect(() => {
+    const el = document.documentElement;
+    if (heroMode) el.dataset.hero = "1"; else delete el.dataset.hero;
+    return () => { delete el.dataset.hero; };
+  }, [heroMode]);
   const templateFont = isTemplate ? (activeTemplate?.font || null) : null;
 
   // center subtitle for template mode
@@ -206,85 +155,79 @@ export default function Home({
     <main className="home" style={templateFont ? { fontFamily: templateFont } : undefined}>
       {toast && <div className="toast">{toast}</div>}
 
-      {/* compact search — top corner, away from center */}
-      <div className="home-topbar">
-        <div className="home-search-mini">
-          <div className="search-box small">
-            <Search size={15} className="muted" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="جستجوی فعالیت…" />
-            {q && <button className="x-btn" onClick={() => setQ("")}><X size={14} /></button>}
-          </div>
-          {results.length > 0 && (
-            <div className="search-results">
-              {results.map((p) => (
-                <button key={p.id} className="sr-row" onClick={() => openProject(p.id)}>
-                  <span className="sr-yr">{p.start_date ? formatJalaliMonth(p.start_date) : "—"}</span>
-                  <span className="sr-title">{p.title}</span>
-                  <ArrowRight size={14} className="muted" />
-                </button>
-              ))}
+      {/* کنترل‌های صفحهٔ اول داخل هدر می‌نشینند: عنوان تمپلیت/بازه، جستجو و انتخاب نما */}
+      {slot && createPortal(
+        <div className="hdr-controls">
+          {isTemplate && (
+            <div className="hdr-group hdr-tpl">
+              <span className="hdr-title">{activeTemplate?.label || "تمپلیت"}</span>
+              <button className="hdr-btn" onClick={() => openReport?.(activeTemplate?.id, activeTemplate?.label)}>
+                <BarChart3 size={14} /> گزارش
+              </button>
+              {admin && (
+                <>
+                  {!(activeTemplate?.locked && !isOwner) && (
+                    <button className="hdr-btn" title="ویرایش تمپلیت"
+                      onClick={() => { setTplEditTarget(activeTemplate?.id || null); setHomeTool("template"); }}>
+                      <Edit3 size={14} /> <span className="hdr-lbl">ویرایش تمپلیت</span>
+                    </button>
+                  )}
+                  {!!activeTemplate?.locked && !isOwner && (
+                    <span className="hdr-btn is-static" title="این تمپلیت توسط مالک آرشیو قفل شده">
+                      <Lock size={13} /> قفل‌شده
+                    </span>
+                  )}
+                  <button className="hdr-btn accent" onClick={() => setHomeTool("define")}>
+                    <Plus size={14} /> <span className="hdr-lbl">فعالیت جدید</span>
+                  </button>
+                </>
+              )}
             </div>
           )}
-          {q && results.length === 0 && <div className="no-res mini">نتیجه‌ای نیست.</div>}
-        </div>
-      </div>
 
-      {/* date-range control — OUTSIDE the circle, only in date mode */}
-      {!isTemplate && !isNone && (
-        <div className="daterange-bar">
-          <span className="drb-label">بازهٔ زمانی</span>
-          <div className="drb-group">
-            <span className="drb-tag">از</span>
-            <select value={range.fromM} onChange={(e) => setRangePart({ fromM: +e.target.value })}>
-              {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
-            </select>
-            <select value={range.fromY} onChange={(e) => setRangePart({ fromY: +e.target.value })}>
-              {Array.from({ length: 13 }, (_, i) => 1398 + i).map((y) => <option key={y} value={y}>{toFa(y)}</option>)}
-            </select>
-          </div>
-          <ArrowLeft size={15} className="drb-arrow" />
-          <div className="drb-group">
-            <span className="drb-tag">تا</span>
-            <select value={range.toM} onChange={(e) => setRangePart({ toM: +e.target.value })}>
-              {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
-            </select>
-            <select value={range.toY} onChange={(e) => setRangePart({ toY: +e.target.value })}>
-              {Array.from({ length: 13 }, (_, i) => 1398 + i).map((y) => <option key={y} value={y}>{toFa(y)}</option>)}
-            </select>
-          </div>
-        </div>
-      )}
-
-      {/* template header bar — only in template mode, gives a quick "new activity" shortcut */}
-      {isTemplate && !homeTool && (
-        <div className="daterange-bar template-bar">
-          <span className="drb-label tpl-title">{activeTemplate?.label || "تمپلیت"}</span>
-          <button className="btn light sm" onClick={() => openReport?.(activeTemplate?.id, activeTemplate?.label)}>
-            <BarChart3 size={14} /> گزارش
-          </button>
-          {admin && (
-            <>
-              {!(activeTemplate?.locked && !isOwner) && (
-                <button className="btn light sm" onClick={() => { setTplEditTarget(activeTemplate?.id || null); setHomeTool("template"); }}>
-                  <Edit3 size={14} /> ویرایش تمپلیت
-                </button>
-              )}
-              {!!activeTemplate?.locked && !isOwner && (
-                <span className="lock-badge sm" title="این تمپلیت توسط مالک آرشیو قفل شده">
-                  <Lock size={13} /> قفل‌شده
-                </span>
-              )}
-              {theme === "card" && (
-                <button className="btn light sm" onClick={autoArrangeGrid} title="کارت‌ها را به‌صورت شبکه‌ای مرتب کن">
-                  <LayoutGrid size={14} /> چیدمان شبکه‌ای
-                </button>
-              )}
-              <button className="btn gold sm" onClick={() => setHomeTool("define")}>
-                <Plus size={14} /> فعالیت جدید
-              </button>
-            </>
+          {!isTemplate && !isNone && (
+            <div className="hdr-group hdr-range" role="group" aria-label="بازهٔ زمانی">
+              <span className="drb-tag">از</span>
+              <select aria-label="ماه شروع" value={range.fromM} onChange={(e) => setRangePart({ fromM: +e.target.value })}>
+                {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+              </select>
+              <select aria-label="سال شروع" value={range.fromY} onChange={(e) => setRangePart({ fromY: +e.target.value })}>
+                {Array.from({ length: 13 }, (_, i) => 1398 + i).map((y) => <option key={y} value={y}>{toFa(y)}</option>)}
+              </select>
+              <ArrowLeft size={14} className="drb-arrow" />
+              <span className="drb-tag">تا</span>
+              <select aria-label="ماه پایان" value={range.toM} onChange={(e) => setRangePart({ toM: +e.target.value })}>
+                {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+              </select>
+              <select aria-label="سال پایان" value={range.toY} onChange={(e) => setRangePart({ toY: +e.target.value })}>
+                {Array.from({ length: 13 }, (_, i) => 1398 + i).map((y) => <option key={y} value={y}>{toFa(y)}</option>)}
+              </select>
+            </div>
           )}
-        </div>
+
+          <div className="home-search-mini hdr-search">
+            <div className="search-box small">
+              <Search size={15} className="muted" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="جستجوی فعالیت…" aria-label="جستجوی فعالیت" />
+              {q && <button className="x-btn" onClick={() => setQ("")} aria-label="پاک‌کردن"><X size={14} /></button>}
+            </div>
+            {results.length > 0 && (
+              <div className="search-results">
+                {results.map((p) => (
+                  <button key={p.id} className="sr-row" onClick={() => { setQ(""); openProject(p.id); }}>
+                    <span className="sr-yr">{p.start_date ? formatJalaliMonth(p.start_date) : "—"}</span>
+                    <span className="sr-title">{p.title}</span>
+                    <ArrowRight size={14} className="muted" />
+                  </button>
+                ))}
+              </div>
+            )}
+            {q && results.length === 0 && <div className="no-res mini">نتیجه‌ای نیست.</div>}
+          </div>
+
+          <StageSwitcher view={view} onPick={pickView} />
+        </div>,
+        slot
       )}
 
       {/* admin tool panels (opened from sidebar) */}
@@ -310,7 +253,7 @@ export default function Home({
       )}
       {admin && homeTool === "settings" && (
         <SettingsPanel
-          orbits={orbits} labelFont={labelFont} anim={anim}
+          view={normalizeStageMode(settings.home_view) || "cinema"} autoplay={autoplay}
           updateSetting={updateSetting}
           onClose={() => setHomeTool(null)}
         />
@@ -334,7 +277,7 @@ export default function Home({
           }}
           onEnter={() => openProject(editing.id)}
           onDelete={async () => {
-            if (!confirm("حذف این فعالیت؟")) return;
+            if (!(await confirmDialog("این فعالیت حذف شود؟", { tone: "danger", title: "حذف فعالیت", confirmLabel: "حذف فعالیت" }))) return;
             try {
               await api.delProject(editing.id);
               setEditId(null);
@@ -364,87 +307,14 @@ export default function Home({
         />
       )}
 
-      {/* orbit map (or freeform card board when theme === "card") — hidden on the
-          blank default landing page (nothing picked from the sidebar yet) */}
-      {!isNone && (
-      <div className="orbit-wrap">
-        <div className={`orbit-square theme-${theme}`} ref={squareRef}>
-          {theme !== "card" && (
-            <svg className="orbit-lines" viewBox="0 0 100 100" preserveAspectRatio="none">
-              {rings.map((r, i) => (
-                theme === "square"
-                  ? <rect key={i} x={50 - r} y={50 - r} width={r * 2} height={r * 2} rx="3"
-                      className={`ring ${i % 2 ? "ring-dash" : ""}`} />
-                  : <circle key={i} cx="50" cy="50" r={r} className={`ring ${i % 2 ? "ring-dash" : ""}`} />
-              ))}
-              {projects.map((p) => p && (
-                <line key={p.id} x1="50" y1="50" x2={p.node_x} y2={p.node_y} className="spoke" />
-              ))}
-            </svg>
-          )}
-
-          {/* center — hidden for the card theme; the template title already sits in the bar above */}
-          {theme !== "card" && (
-            <div className={`center-node ${anim.pulse ? "anim-pulse" : ""}`}>
-              <div className="yr-core">
-                {isTemplate ? (
-                  <>
-                    <Layers size={15} className="core-ic" />
-                    <span className="yr-label" style={{ fontSize: labelFont }}>{activeTemplate?.label || "—"}</span>
-                    {tplRange && <span className="yr-sub">{tplRange}</span>}
-                  </>
-                ) : (
-                  <>
-                    <CalendarRange size={15} className="core-ic" />
-                    <span className="range-disp" style={{ fontSize: labelFont }}>
-                      {MONTHS[range.fromM - 1]} {toFa(range.fromY)}
-                    </span>
-                    <span className="range-disp-sep">تا</span>
-                    <span className="range-disp" style={{ fontSize: labelFont }}>
-                      {MONTHS[range.toM - 1]} {toFa(range.toY)}
-                    </span>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* nodes / cards */}
-          {projects.map((p) => p && (
-            <div key={p.id} className={`node-pos ${editId === p.id ? "editing" : ""}`}
-              style={{ left: `${p.node_x}%`, top: `${p.node_y}%` }}>
-              <button
-                className={`node ${theme === "card" ? "node-card" : ""} ${anim.float && theme !== "card" ? "anim-float" : ""} ${canManageProject(p) ? "draggable" : ""}`}
-                style={theme === "card"
-                  ? { width: Math.max(p.node_size * 2.1, 130), height: Math.max(p.node_size * 1.15, 74) }
-                  : { width: p.node_size, height: p.node_size }}
-                onPointerDown={(e) => onPointerDown(e, p, "move")}
-                onClick={() => onNodeClick(p)}
-                title={canManageProject(p) ? "کلیک: ویرایش · بکش: جابه‌جایی" : (admin ? "کلیک: مشاهده و کپی فعالیت (این تمپلیت قفل است)" : p.title)}
-              >
-                {theme !== "card" && <span className={`node-dot ${anim.twinkle ? "anim-twinkle" : ""}`} />}
-                <span className="node-inner-title"
-                  style={{ fontSize: (p.node_font || 12), fontWeight: p.node_bold ? 800 : 600 }}>
-                  {p.title}
-                </span>
-                {theme === "card" && p.start_date && (
-                  <span className="node-card-date">{formatJalaliMonth(p.start_date)}</span>
-                )}
-              </button>
-              {canManageProject(p) && (
-                <span className="resize-h" onPointerDown={(e) => onPointerDown(e, p, "resize")} title="تغییر اندازه" />
-              )}
-            </div>
-          ))}
-        </div>
+      {/* صحنهٔ اصلی: سه نمای VOD/ارائه به‌جای نقشهٔ مداری */}
+      <div className="hs-wrap">
+        <HomeStage
+          view={view} items={projects.filter(Boolean)} autoplay={autoplay}
+          onOpen={openProject} onOpenWork={openWork}
+          canEdit={canManageProject} onEdit={(id) => setEditId(id)}
+        />
       </div>
-      )}
-
-      {isNone && (
-        <div className="home-blank">
-          <span className="muted-sm">از سایدبار یک تمپلیت یا حالت تاریخ را انتخاب کن.</span>
-        </div>
-      )}
     </main>
   );
 }
@@ -564,7 +434,7 @@ function TemplatePanel({ templates, reload, onClose, flash, isOwner = false, onE
     }
   };
   const del = async (id) => {
-    if (!confirm("حذف این تمپلیت؟ فعالیت‌هایش حذف نمی‌شوند.")) return;
+    if (!(await confirmDialog("این تمپلیت حذف شود؟ فعالیت‌های داخلش حذف نمی‌شوند.", { tone: "danger", title: "حذف تمپلیت", confirmLabel: "حذف تمپلیت" }))) return;
     try {
       await api.delTemplate(id);
       await reload();
@@ -591,8 +461,8 @@ function TemplatePanel({ templates, reload, onClose, flash, isOwner = false, onE
                   <JalaliInput value={edit.to_date} onChange={(d) => setEdit({ ...edit, to_date: d })} />
                 </div>
                 <div className="dp-row">
-                  <label className="dp-lbl">تم گرافیکی</label>
-                  <select className="full-select" value={edit.theme} onChange={(e) => setEdit({ ...edit, theme: e.target.value })}>
+                  <label className="dp-lbl">نمای صفحه</label>
+                  <select className="full-select" value={normalizeStageMode(edit.theme) || ""} onChange={(e) => setEdit({ ...edit, theme: e.target.value })}>
                     {TEMPLATE_THEMES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
                   </select>
                 </div>
@@ -650,8 +520,8 @@ function TemplatePanel({ templates, reload, onClose, flash, isOwner = false, onE
               <JalaliInput value={draft.to_date} onChange={(d) => setDraft({ ...draft, to_date: d })} />
             </div>
             <div className="dp-row">
-              <label className="dp-lbl">تم گرافیکی</label>
-              <select className="full-select" value={draft.theme} onChange={(e) => setDraft({ ...draft, theme: e.target.value })}>
+              <label className="dp-lbl">نمای صفحه</label>
+              <select className="full-select" value={normalizeStageMode(draft.theme) || ""} onChange={(e) => setDraft({ ...draft, theme: e.target.value })}>
                 {TEMPLATE_THEMES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
               </select>
             </div>
@@ -671,32 +541,19 @@ function TemplatePanel({ templates, reload, onClose, flash, isOwner = false, onE
   );
 }
 
-function SettingsPanel({ orbits, labelFont, anim, updateSetting, onClose }) {
+function SettingsPanel({ view, autoplay, updateSetting, onClose }) {
   return (
     <Panel title="تنظیمات نمایش" onClose={onClose}>
       <div className="settings-grid">
-        <div className="sp-group">
-          <span className="sp-label">تعداد مدار</span>
-          <div className="stepper">
-            <button onClick={() => updateSetting({ orbits: Math.max(1, orbits - 1) })}><Minus size={14} /></button>
-            <b>{toFa(orbits)}</b>
-            <button onClick={() => updateSetting({ orbits: Math.min(6, orbits + 1) })}><Plus size={14} /></button>
-          </div>
-        </div>
-        <div className="sp-group">
-          <span className="sp-label">اندازهٔ فونت لیبل مرکز</span>
-          <div className="stepper">
-            <button onClick={() => updateSetting({ range_label_font: Math.max(9, labelFont - 1) })}><Minus size={14} /></button>
-            <b>{toFa(labelFont)}</b>
-            <button onClick={() => updateSetting({ range_label_font: Math.min(24, labelFont + 1) })}><Plus size={14} /></button>
-          </div>
+        <div className="sp-group sp-wide">
+          <span className="sp-label">نمای پیش‌فرض صفحهٔ اول</span>
+          <StageSwitcher view={view} onPick={(k) => updateSetting({ home_view: k })} />
+          <span className="muted-sm">هر تمپلیت می‌تواند نمای خودش را داشته باشد، و هر بازدیدکننده هم می‌تواند روی دستگاه خودش عوضش کند.</span>
         </div>
         <div className="sp-group sp-wide">
-          <span className="sp-label">انیمیشن‌ها</span>
+          <span className="sp-label">نمای سینما</span>
           <div className="toggles">
-            <Toggle on={anim.pulse}   label="تپش مرکز" onClick={() => updateSetting({ anim_pulse:   anim.pulse   ? "0" : "1" })} />
-            <Toggle on={anim.float}   label="شناوری"   onClick={() => updateSetting({ anim_float:   anim.float   ? "0" : "1" })} />
-            <Toggle on={anim.twinkle} label="چشمک‌زن" onClick={() => updateSetting({ anim_twinkle: anim.twinkle ? "0" : "1" })} />
+            <Toggle on={autoplay} label="پیشروی خودکار اسلایدها" onClick={() => updateSetting({ home_autoplay: autoplay ? "0" : "1" })} />
           </div>
         </div>
       </div>
@@ -705,7 +562,6 @@ function SettingsPanel({ orbits, labelFont, anim, updateSetting, onClose }) {
 }
 
 function NodeEditor({ p, templates, readOnly = false, onPatch, onSave, onEnter, onDelete, onDuplicate, onCreateTemplate, onClose }) {
-  const font = p.node_font || 12;
   const [dupTarget, setDupTarget] = useState("");
   const [duping, setDuping] = useState(false);
   const [newTplMode, setNewTplMode] = useState(false);
@@ -742,17 +598,6 @@ function NodeEditor({ p, templates, readOnly = false, onPatch, onSave, onEnter, 
               <option value="">— بدون تمپلیت —</option>
               {templates.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
             </select>
-          </div>
-          <div className="dp-row ne-style">
-            <span className="dp-lbl"><Type size={14} /> فونت</span>
-            <div className="stepper">
-              <button onClick={() => onPatch({ node_font: Math.max(9, font - 1) })}><Minus size={14} /></button>
-              <b>{toFa(Math.round(font))}</b>
-              <button onClick={() => onPatch({ node_font: Math.min(22, font + 1) })}><Plus size={14} /></button>
-            </div>
-            <button className={`tg ${p.node_bold ? "on" : ""}`} onClick={() => onPatch({ node_bold: p.node_bold ? 0 : 1 })}>
-              <Bold size={14} /> توپر
-            </button>
           </div>
         </>
       )}

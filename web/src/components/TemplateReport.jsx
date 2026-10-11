@@ -8,6 +8,7 @@ import {
 } from "recharts";
 import { api } from "../api";
 import { toFa } from "../jalali";
+import { PageSkeleton } from "./States.jsx";
 
 function fmtNum(n) {
   const v = Number(n) || 0;
@@ -78,7 +79,7 @@ export default function TemplateReport({ templateId, templateLabel, goBack }) {
     return (
       <div className="page report-page">
         <div className="page-top"><button className="back" onClick={goBack}><ChevronRight size={16} /> بازگشت</button></div>
-        <div className="muted">در حال بارگذاری گزارش…</div>
+        <PageSkeleton hero={false} cards={4} />
       </div>
     );
   }

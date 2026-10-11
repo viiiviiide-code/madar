@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { X, Plus, Trash2, UserPlus, Shield, Eye, Edit3, Layers, Circle, ChevronDown, KeyRound, Lock } from "lucide-react";
 import { api } from "../api";
+import { confirmDialog, alertDialog } from "./Dialog.jsx";
 
 export default function UserManagement({ templates, isOwner = false, onClose }) {
   const [users, setUsers] = useState(null);
@@ -40,9 +41,9 @@ export default function UserManagement({ templates, isOwner = false, onClose }) 
   };
 
   const delUser = async (u) => {
-    if (!confirm(`کاربر «${u.username}» حذف شود؟`)) return;
+    if (!(await confirmDialog(`کاربر «${u.username}» حذف شود؟`, { tone: "danger", confirmLabel: "حذف" }))) return;
     try { await api.delUser(u.id); await reload(); }
-    catch (e) { alert(e.message || "حذف ناموفق بود."); }
+    catch (e) { await alertDialog(e.message || "حذف ناموفق بود."); }
   };
 
   const resetPassword = async () => {
@@ -149,7 +150,7 @@ export default function UserManagement({ templates, isOwner = false, onClose }) 
                     title={u.owner ? "لغو مالکیت آرشیو از این کاربر" : "این کاربر را مالک آرشیو کن"}
                     onClick={async () => {
                       try { await api.updateUser(u.id, { owner: !u.owner }); await reload(); }
-                      catch (e) { alert(e.message || "تغییر ناموفق بود."); }
+                      catch (e) { await alertDialog(e.message || "تغییر ناموفق بود."); }
                     }}>
                     {u.owner ? "لغو مالکیت" : "تبدیل به مالک"}
                   </button>

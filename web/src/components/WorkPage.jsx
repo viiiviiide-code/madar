@@ -7,6 +7,10 @@ import TimeInput from "./TimeInput.jsx";
 import KeywordInput from "./KeywordInput.jsx";
 import CopyWorkModal from "./CopyWorkModal.jsx";
 import { Media, gradFor, VideoThumb, mediaKind, linkHost } from "./ProjectPage.jsx";
+import { confirmDialog, alertDialog } from "./Dialog.jsx";
+import { PageSkeleton } from "./States.jsx";
+import { VodRow } from "./Vod.jsx";
+import WorkInsights from "./Insights.jsx";
 
 /* compact number display */
 function fmtNum(n) {
@@ -25,6 +29,9 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
     if (Array.isArray(typesProp) && typesProp.length) setOwnTypes(typesProp);
   }, [typesProp]);
   const types = ownTypes;
+  // کلید نوع (video) → برچسب فارسی (ویدئو)؛ اگر برچسبی نبود همان کلید
+  const typeNames = (k) =>
+    String(k || "").split(",").filter(Boolean).map((x) => types.find((t) => t.key === x)?.label || x).join("، ") || "—";
   const [work,        setWork]        = useState(null);
   const [similar,     setSimilar]     = useState([]);
   const [draft,       setDraft]       = useState(null);
@@ -113,7 +120,7 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
       <div className="no-res">این اثر پیدا نشد یا حذف شده است.</div>
     </div>
   );
-  if (!work || !draft) return <div className="page muted">در حال بارگذاری…</div>;
+  if (!work || !draft) return <PageSkeleton cards={3} />;
 
   // same logic as ProjectPage: a locked template can only be structurally edited
   // or deleted by the archive owner. copying it out (below) stays available to
@@ -221,7 +228,7 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (e) {
-      alert("ذخیره ناموفق بود. اتصال به سرور را بررسی کن.");
+      await alertDialog("اتصال به سرور را بررسی کن و دوباره تلاش کن.", { title: "ذخیره ناموفق بود" });
     }
   };
 
@@ -338,7 +345,7 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
     setDraft((d) => ({ ...d, media: (d.media || []).filter((_, j) => j !== i) }));
 
   return (
-    <div className="page">
+    <div className={`page ${!admin ? "work-vod" : ""}`}>
       <button className="back" onClick={goBack}>
         <ChevronRight size={16} /> بازگشت به آثار
       </button>
@@ -470,7 +477,7 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
         {/* info aside */}
         <aside className="work-info">
           <div className="wi-top">
-            {!canManage && <span className="chip">{String(work.type || "").split(",").filter(Boolean).join("، ")}</span>}
+            {!canManage && <span className="chip">{typeNames(work.type)}</span>}
             {canManage && (
               <button className={`card-star ${draft.featured ? "on" : ""}`}
                 title={draft.featured ? "حذف از آثار شاخص" : "علامت‌گذاری به‌عنوان اثر شاخص"}
@@ -600,8 +607,8 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
           </Field>
 
           {/* platform views — social networks only; TV networks have their own section below */}
-          <div className="pv-block">
-            <span className="info-k">بازدید / لایک / کامنت — شبکه‌های اجتماعی</span>
+          <div className={`pv-block ${canTouchEngagement ? "" : "insight"}`}>
+            <span className="info-k">{canTouchEngagement ? "بازدید / لایک / کامنت — شبکه‌های اجتماعی" : "آمار اثر · شبکه‌های اجتماعی"}</span>
             {canTouchEngagement ? (
               <>
                 <div className="pv-list">
@@ -659,7 +666,7 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
                             <button className="mini danger" title="حذف پلتفرم"
                               onClick={async (e) => {
                                 e.stopPropagation();
-                                if (confirm(`پلتفرم «${p.label}» حذف شود؟ آمار ثبت‌شده برایش هم پاک می‌شود.`)) {
+                                if (await confirmDialog(`پلتفرم «${p.label}» حذف شود؟ آمار ثبت‌شده برایش هم پاک می‌شود.`, { tone: "danger", confirmLabel: "حذف" })) {
                                   await api.delPlatform(p.id);
                                   await reloadMeta();
                                 }
@@ -712,41 +719,7 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
                 </div>
               </>
             ) : (
-              <>
-                <div className="pv-view">
-                  {work.platformViews.length === 0
-                    ? <span className="muted-sm">ثبت نشده</span>
-                    : work.platformViews.map((pv) => (
-                      <div key={pv.platform_id} className="pv-line">
-                        <span className="plat-logo-wrap sm">
-                          {pv.logo_url
-                            ? <img className="plat-logo" src={pv.logo_url} alt="" />
-                            : <span className="plat-logo ph">{pv.label?.[0] || "?"}</span>}
-                        </span>
-                        <span className="pv-line-name">{pv.label}</span>
-                        <div className="pv-line-stats">
-                          <b><Eye size={13} /> {fmtNum(pv.views)}</b>
-                          <b><Heart size={13} /> {fmtNum(pv.likes)}</b>
-                          <b><MessageCircle size={13} /> {fmtNum(pv.comments)}</b>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-                <div className="pv-totals">
-                  <div className="pv-total-item">
-                    <Eye size={16} className="cyan" />
-                    <div><span className="info-k">جمع بازدید</span><div className="info-v">{fmtNum(work.totalViews)}</div></div>
-                  </div>
-                  <div className="pv-total-item">
-                    <Heart size={16} className="cyan" />
-                    <div><span className="info-k">جمع لایک</span><div className="info-v">{fmtNum(work.totalLikes)}</div></div>
-                  </div>
-                  <div className="pv-total-item">
-                    <MessageCircle size={16} className="cyan" />
-                    <div><span className="info-k">جمع کامنت</span><div className="info-v">{fmtNum(work.totalComments)}</div></div>
-                  </div>
-                </div>
-              </>
+              <WorkInsights work={work} />
             )}
           </div>
 
@@ -828,7 +801,7 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
                             </button>
                             <button className="mini danger" title="حذف شبکه"
                               onClick={async () => {
-                                if (confirm(`شبکهٔ «${p.label}» حذف شود؟`)) { await api.delPlatform(p.id); await reloadMeta(); }
+                                if (await confirmDialog(`شبکهٔ «${p.label}» حذف شود؟`, { tone: "danger", confirmLabel: "حذف" })) { await api.delPlatform(p.id); await reloadMeta(); }
                               }}>
                               <Trash2 size={12} /> حذف
                             </button>
@@ -888,7 +861,7 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
               )}
               {canManage && (
                 <button className="btn ghost danger" onClick={async () => {
-                  if (confirm("این اثر برای همیشه حذف شود؟")) {
+                  if (await confirmDialog("این اثر برای همیشه حذف می‌شود و برگشتی ندارد.", { tone: "danger", title: "حذف اثر", confirmLabel: "حذف اثر" })) {
                     await api.delWork(work.id);
                     goBack();
                   }
@@ -912,7 +885,11 @@ export default function WorkPage({ workId, projectId, admin, canEditEngagement =
       )}
 
       {/* similar works */}
-      {similar.length > 0 && (
+      {similar.length > 0 && !admin && (
+        <VodRow title="آثار مشابه" hint="بر اساس اشتراک کلیدواژه‌ها" items={similar}
+          typeLabel={typeNames} onOpen={(w) => openWork(w.id)} />
+      )}
+      {similar.length > 0 && admin && (
         <section className="similar">
           <h2>آثار مشابه</h2>
           <p className="muted-sm">بر اساس اشتراک کلیدواژه‌ها</p>

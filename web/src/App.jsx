@@ -14,6 +14,8 @@ import TemplateReport from "./components/TemplateReport.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import Login from "./components/Login.jsx";
 import PublicWorkPage from "./components/PublicWorkPage.jsx";
+import { confirmDialog } from "./components/Dialog.jsx";
+import { AppSkeleton } from "./components/States.jsx";
 
 // URL <-> view mapping, so refreshing the page (or sharing a link) keeps
 // the user on the same screen instead of always bouncing to "home".
@@ -111,6 +113,13 @@ export default function App() {
   const [actOpen, setActOpen] = useState(true);          // "untemplated" activities list collapsed/expanded
   const [expandedTpl, setExpandedTpl] = useState({});    // per-template nested-activities expand state
   const popping = useRef(false);
+  const [scrolled, setScrolled] = useState(false);   // هدر روی هیرو شفاف است و با اسکرول جامد می‌شود
+  useEffect(() => {
+    const on = () => setScrolled(window.scrollY > 24);
+    on();
+    window.addEventListener("scroll", on, { passive: true });
+    return () => window.removeEventListener("scroll", on);
+  }, []);
 
   useEffect(() => {
     setUnauthorizedHandler(() => setUser(null));
@@ -180,7 +189,7 @@ export default function App() {
   };
   const delTemplateFromSidebar = async (t, e) => {
     e.stopPropagation();
-    if (!confirm(`تمپلیت «${t.label}» حذف شود؟ فعالیت‌های داخلش حذف نمی‌شوند، فقط از این تمپلیت جدا می‌شوند.`)) return;
+    if (!(await confirmDialog(`تمپلیت «${t.label}» حذف شود؟ فعالیت‌های داخلش حذف نمی‌شوند، فقط از این تمپلیت جدا می‌شوند.`, { tone: "danger", title: "حذف تمپلیت", confirmLabel: "حذف تمپلیت" }))) return;
     await api.delTemplate(t.id);
     if (mode.type === "template" && String(mode.id) === String(t.id)) { setMode({ type: "date" }); go(viewForMode({ type: "date" })); }
     loadTemplates(); loadProjects();
@@ -188,13 +197,13 @@ export default function App() {
   const toggleTemplateLockFromSidebar = async (t, e) => {
     e.stopPropagation();
     const next = !t.locked;
-    if (next && !confirm(`تمپلیت «${t.label}» قفل شود؟ بعد از این، هیچ ادمین دیگری جز تو نمی‌تواند اثری را ویرایش/حذف کند — فقط می‌تواند کپی بگیرد.`)) return;
+    if (next && !(await confirmDialog(`تمپلیت «${t.label}» قفل شود؟ بعد از این، هیچ ادمین دیگری جز تو نمی‌تواند اثری را ویرایش یا حذف کند؛ فقط می‌تواند کپی بگیرد.`, { title: "قفل کردن تمپلیت", confirmLabel: "قفل شود" }))) return;
     await api.toggleTemplateLock(t.id, next);
     loadTemplates();
   };
   const delActivityFromSidebar = async (p, e) => {
     e.stopPropagation();
-    if (!confirm(`فعالیت «${p.title}» حذف شود؟`)) return;
+    if (!(await confirmDialog(`فعالیت «${p.title}» حذف شود؟`, { tone: "danger", title: "حذف فعالیت", confirmLabel: "حذف فعالیت" }))) return;
     await api.delProject(p.id);
     if (view.name === "project" && String(view.id) === String(p.id)) go(viewForMode(mode));
     loadProjects(); loadTemplates();
@@ -204,12 +213,17 @@ export default function App() {
   if (view.name === "public-work") return <PublicWorkPage token={view.token} />;
 
   if (!user) return <Login onLogin={setUser} />;
-  if (!settings) return <div className="app loading">در حال بارگذاری…</div>;
+  if (!settings) return <AppSkeleton />;
   const theme = settings.theme === "light" ? "light" : "dark";
 
   return (
     <div className="app">
-      <header className="topbar">
+      <a className="skip-link" href="#main-content" onClick={(e) => {
+        e.preventDefault();
+        const el = document.getElementById("main-content");
+        el?.focus(); el?.scrollIntoView();
+      }}>پرش به محتوای اصلی</a>
+      <header className={`topbar ${scrolled ? "scrolled" : ""}`}>
         <div className="topbar-right">
           <button className="icon-btn" onClick={() => setSidebar(true)} title="منو"><Menu size={18} /></button>
           <button className="brand" onClick={() => go(viewForMode(mode))}>
@@ -217,6 +231,7 @@ export default function App() {
             <span><b>تلاش</b><em>آرشیو فعالیت‌ها و آثار مجموعه</em></span>
           </button>
         </div>
+        <div id="topbar-slot" className="topbar-slot" />
         <div className="topbar-left">
           <button className="icon-btn" onClick={() => updateSetting({ theme: theme === "light" ? "dark" : "light" })}
             title={theme === "light" ? "حالت شب" : "حالت روز"}>
@@ -392,6 +407,7 @@ export default function App() {
         </div>
       </aside>
 
+      <div id="main-content" tabIndex={-1}>
       <ErrorBoundary
         key={view.name + ":" + (view.id || "") + ":" + (view.workId || "") + ":" + (view.tid || "")}
         onReset={() => go(viewForMode(mode))}
@@ -403,6 +419,7 @@ export default function App() {
             templates={templates} reloadTemplates={loadTemplates}
             homeTool={homeTool} setHomeTool={setHomeTool}
             openProject={(id) => go({ name: "project", id })}
+            openWork={(id, workId) => go({ name: "work", id, workId })}
             openSidebar={() => setSidebar(true)}
             openReport={(tid, label) => go({ name: "report", tid, label })}
             onProjectsChanged={() => { loadProjects(); loadTemplates(); }}
@@ -458,6 +475,7 @@ export default function App() {
           />
         )}
       </ErrorBoundary>
+      </div>
 
       <footer className="foot">
         <span className="foot-line">

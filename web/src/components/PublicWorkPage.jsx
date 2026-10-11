@@ -3,6 +3,7 @@ import { Eye, Heart, MessageCircle, Link2, AlertTriangle } from "lucide-react";
 import { api } from "../api";
 import { formatJalali, toFa } from "../jalali";
 import { Media, gradFor, VideoThumb, mediaKind, linkHost } from "./ProjectPage.jsx";
+import { PageSkeleton } from "./States.jsx";
 
 function fmtNum(n) {
   const v = Number(n) || 0;
@@ -34,7 +35,7 @@ export default function PublicWorkPage({ token }) {
     );
   }
   if (!work) {
-    return <div className="app public-app"><div className="page muted">در حال بارگذاری…</div></div>;
+    return <div className="app public-app"><PageSkeleton cards={3} /></div>;
   }
 
   const rawGallery = (work.media && work.media.length)

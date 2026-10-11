@@ -1,9 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ChevronRight, Plus, Trash2, MoveRight, MoveLeft, Search, ArrowUpDown,
   Upload, Play, Maximize2, Minimize2, LayoutGrid, List as ListIcon, Eye, RefreshCw, X,
   RotateCcw, Volume2, VolumeX, Film, Info, Star, Copy, Link2, Camera, Save, Edit3, FolderInput, Lock, CheckSquare,
+  SearchX, FolderOpen,
 } from "lucide-react";
+import { PageSkeleton, EmptyState } from "./States.jsx";
+import { VodBrowser } from "./Vod.jsx";
 import { api } from "../api";
 import { formatJalali, toFa, faToEn, jalaliToISO, isValidISO } from "../jalali";
 import KeywordInput from "./KeywordInput.jsx";
@@ -31,6 +35,7 @@ function clearWorkDraft(key) {
 }
 import JalaliInput from "./JalaliInput.jsx";
 import * as XLSX from "xlsx";
+import { confirmDialog } from "./Dialog.jsx";
 
 const ICONS = { video: Play, poster: Maximize2, image: LayoutGrid, audio: Eye, screenshot: Camera, link: Link2 };
 
@@ -113,7 +118,7 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
     if (!works.length) return;
     const lastId = sessionStorage.getItem(`madar_lastwork_${projectId}`);
     if (!lastId) return;
-    const el = document.getElementById(`work-${lastId}`);
+    const el = document.getElementById(`work-${lastId}`) || document.querySelector(`[data-work-id="${lastId}"]`);
     if (el) el.scrollIntoView({ block: "center" });
     sessionStorage.removeItem(`madar_lastwork_${projectId}`);
   }, [works, projectId]);
@@ -143,7 +148,22 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
     return () => document.removeEventListener("fullscreenchange", h);
   }, []);
 
-  if (!project) return <div className="page muted">در حال بارگذاری…</div>;
+  // حالت نمایش: تیزر از بالای صفحه و زیر هدر شفاف شروع می‌شود (مثل صفحهٔ اول)؛ «بازگشت» به هدر می‌رود
+  const [hdrSlot, setHdrSlot] = useState(null);
+  useEffect(() => { setHdrSlot(document.getElementById("topbar-slot")); }, []);
+  const heroPage = !admin && !!project;
+  useEffect(() => {
+    const el = document.documentElement;
+    if (heroPage) el.dataset.hero = "1"; else delete el.dataset.hero;
+    return () => { delete el.dataset.hero; };
+  }, [heroPage]);
+
+  if (!project) return <PageSkeleton />;
+  const hasFilters = !!q || type !== "all" || featuredOnly;
+
+  // «حالت نمایش» (غیرمدیر): نمای شبیه پلتفرم ویدیو — هیرو + ردیف‌های افقی
+  const vod = !admin;
+  const totalViews = works.reduce((s, w) => s + (Number(w.totalViews) || 0), 0);
 
   // a locked template can only be structurally changed by the archive owner —
   // everyone else (even other admins) can still browse it and copy works OUT,
@@ -190,7 +210,7 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
     onProjectChanged?.();
   };
   const delActivity = async () => {
-    if (!confirm(`فعالیت «${project.title}» حذف شود؟`)) return;
+    if (!(await confirmDialog(`فعالیت «${project.title}» حذف شود؟`, { tone: "danger", title: "حذف فعالیت", confirmLabel: "حذف فعالیت" }))) return;
     await api.delProject(project.id);
     onProjectChanged?.();
     goHome();
@@ -204,7 +224,20 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
   };
 
   return (
-    <div className="page">
+    <div className={`page ${vod ? "vod" : ""}`}>
+      {vod && hdrSlot && createPortal(
+        <div className="hdr-controls is-start">
+          <div className="hdr-group">
+            <button className="hdr-btn" onClick={goHome}><ChevronRight size={15} /> بازگشت</button>
+            {locked && !isOwner && (
+              <span className="hdr-btn is-static" title="این تمپلیت توسط مالک آرشیو قفل شده">
+                <Lock size={13} /> قفل‌شده
+              </span>
+            )}
+          </div>
+        </div>,
+        hdrSlot
+      )}
       <div className="page-top">
         <button className="back" onClick={goHome}>
           <ChevronRight size={16} /> بازگشت
@@ -298,6 +331,14 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
             </span>
             <h1>{project.title}</h1>
             {project.sub && <p>{project.sub}</p>}
+            {vod && (
+              <>
+                <div className="vod-chips">
+                  <span>{toFa(works.length)} اثر</span>
+                  {totalViews > 0 && <span><Eye size={13} /> {fmtNum(totalViews)} بازدید</span>}
+                </div>
+              </>
+            )}
           </div>
 
           {/* controls bottom-left */}
@@ -326,7 +367,7 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
       </section>
 
       {/* ---- stats — centered ---- */}
-      <section>
+      <section className="stats-section">
         <div className="row-head">
           <h2>آمار پروژه</h2>
           {canEditStats && (
@@ -387,15 +428,17 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
       </section>
 
       {/* ---- works ---- */}
-      <section>
-        <div className="row-head">
-          <h2>آثار منتخب <span className="count-badge">{toFa(works.length)}</span></h2>
-          {admin && (
-            <button className="btn ghost sm" onClick={() => setAddOpen((v) => !v)}>
-              <Plus size={14} /> افزودن اثر
-            </button>
-          )}
-        </div>
+      <section className="works-section">
+        {!vod && (
+          <div className="row-head">
+            <h2>آثار منتخب <span className="count-badge">{toFa(works.length)}</span></h2>
+            {admin && (
+              <button className="btn ghost sm" onClick={() => setAddOpen((v) => !v)}>
+                <Plus size={14} /> افزودن اثر
+              </button>
+            )}
+          </div>
+        )}
 
         {addOpen && admin && (
           <AddWork
@@ -431,6 +474,14 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
           />
         )}
 
+        {vod ? (
+          <VodBrowser
+            works={works} types={types} typeLabel={typeLabel} onOpen={(w) => goToWork(w.id)}
+            q={q} setQ={setQ} type={type} setType={setType}
+            featuredOnly={featuredOnly} setFeaturedOnly={setFeaturedOnly}
+          />
+        ) : (
+          <>
         {/* unified toolbar */}
         <div className="works-toolbar">
           <div className="search-box small flex-1">
@@ -492,7 +543,7 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
         {viewMode === "grid" ? (
           <div className="works-grid">
             {works.map((w) => (
-              <div key={w.id} id={`work-${w.id}`} className={`work-card ${w.featured ? "is-featured" : ""} ${selectMode && selectedIds.has(w.id) ? "is-selected" : ""}`} onClick={() => onCardClick(w)} role="button" tabIndex={0}>
+              <div key={w.id} id={`work-${w.id}`} className={`work-card ${w.featured ? "is-featured" : ""} ${selectMode && selectedIds.has(w.id) ? "is-selected" : ""}`} onClick={() => onCardClick(w)} onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onCardClick(w); } }} role="button" tabIndex={0}>
                 {selectMode && (
                   <label className="card-select-check" onClick={(e) => e.stopPropagation()}>
                     <input type="checkbox" checked={selectedIds.has(w.id)} onChange={() => toggleSelect(w.id)} />
@@ -515,7 +566,7 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
                     <button className="card-del" title="حذف اثر"
                       onClick={async (e) => {
                         e.stopPropagation();
-                        if (confirm(`حذف «${w.title}»؟`)) { await api.delWork(w.id); setRefresh((x) => x + 1); }
+                        if (await confirmDialog(`«${w.title}» حذف شود؟`, { tone: "danger", confirmLabel: "حذف" })) { await api.delWork(w.id); setRefresh((x) => x + 1); }
                       }}>
                       <Trash2 size={14} />
                     </button>
@@ -532,12 +583,18 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
                 </div>
               </div>
             ))}
-            {works.length === 0 && <div className="no-res">اثری با این فیلترها پیدا نشد.</div>}
+            {works.length === 0 && (
+              hasFilters
+                ? <EmptyState icon={SearchX} title="اثری پیدا نشد" text="فیلترها یا عبارت جستجو را تغییر بده تا آثار بیشتری ببینی."
+                    action={<button className="btn ghost sm" onClick={() => { setQ(""); setType("all"); setFeaturedOnly(false); }}>پاک‌کردن فیلترها</button>} />
+                : <EmptyState icon={FolderOpen} title="هنوز اثری ثبت نشده" text="اولین اثر این فعالیت را اضافه کن تا اینجا نمایش داده شود."
+                    action={admin ? <button className="btn gold sm" onClick={() => setAddOpen(true)}><Plus size={14} /> افزودن اثر</button> : null} />
+            )}
           </div>
         ) : (
           <div className="works-list">
             {works.map((w) => (
-              <div key={w.id} id={`work-${w.id}`} className={`work-row ${w.featured ? "is-featured" : ""} ${selectMode && selectedIds.has(w.id) ? "is-selected" : ""}`} onClick={() => onCardClick(w)} role="button" tabIndex={0}>
+              <div key={w.id} id={`work-${w.id}`} className={`work-row ${w.featured ? "is-featured" : ""} ${selectMode && selectedIds.has(w.id) ? "is-selected" : ""}`} onClick={() => onCardClick(w)} onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onCardClick(w); } }} role="button" tabIndex={0}>
                 {selectMode && (
                   <label className="card-select-check row-select-check" onClick={(e) => e.stopPropagation()}>
                     <input type="checkbox" checked={selectedIds.has(w.id)} onChange={() => toggleSelect(w.id)} />
@@ -565,7 +622,7 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
                         <button className="row-del" title="حذف اثر"
                           onClick={async (e) => {
                             e.stopPropagation();
-                            if (confirm(`حذف «${w.title}»؟`)) { await api.delWork(w.id); setRefresh((x) => x + 1); }
+                            if (await confirmDialog(`«${w.title}» حذف شود؟`, { tone: "danger", confirmLabel: "حذف" })) { await api.delWork(w.id); setRefresh((x) => x + 1); }
                           }}>
                           <Trash2 size={14} />
                         </button>
@@ -589,8 +646,16 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
                 </div>
               </div>
             ))}
-            {works.length === 0 && <div className="no-res">اثری با این فیلترها پیدا نشد.</div>}
+            {works.length === 0 && (
+              hasFilters
+                ? <EmptyState icon={SearchX} title="اثری پیدا نشد" text="فیلترها یا عبارت جستجو را تغییر بده تا آثار بیشتری ببینی."
+                    action={<button className="btn ghost sm" onClick={() => { setQ(""); setType("all"); setFeaturedOnly(false); }}>پاک‌کردن فیلترها</button>} />
+                : <EmptyState icon={FolderOpen} title="هنوز اثری ثبت نشده" text="اولین اثر این فعالیت را اضافه کن تا اینجا نمایش داده شود."
+                    action={admin ? <button className="btn gold sm" onClick={() => setAddOpen(true)}><Plus size={14} /> افزودن اثر</button> : null} />
+            )}
           </div>
+        )}
+          </>
         )}
       </section>
     </div>
@@ -968,7 +1033,7 @@ function AddWork({ projectId, types, reloadMeta, onAdded, copyFrom, onClose }) {
                     {t.label}
                     <button className="mini danger" title="حذف این نوع"
                       onClick={async () => {
-                        if (confirm(`نوع «${t.label}» حذف شود؟ (آثار ثبت‌شده با این نوع دست‌نخورده می‌مانند)`)) {
+                        if (await confirmDialog(`نوع «${t.label}» حذف شود؟ آثار ثبت‌شده با این نوع دست‌نخورده می‌مانند.`, { tone: "danger", confirmLabel: "حذف" })) {
                           await api.delType(t.id);
                           setF((prev) => ({ ...prev, type: (prev.type || "").split(",").filter((k) => k !== t.key).join(",") }));
                           await reloadMeta();
