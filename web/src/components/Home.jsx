@@ -225,7 +225,7 @@ export default function Home({
             {q && results.length === 0 && <div className="no-res mini">نتیجه‌ای نیست.</div>}
           </div>
 
-          <StageSwitcher view={view} onPick={pickView} />
+          <StageSwitcher view={view} onPick={pickView} compact />
         </div>,
         slot
       )}

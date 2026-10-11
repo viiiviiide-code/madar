@@ -334,7 +334,7 @@ export default function HomeStage({ view, items, onOpen, onOpenWork, canEdit = (
 }
 
 /* انتخاب نما به‌صورت لیست کشویی (داخل هدر و پنل تنظیمات) */
-export function StageSwitcher({ view, onPick }) {
+export function StageSwitcher({ view, onPick, compact = false }) {
   const [open, setOpen] = useState(false);
   const box = useRef(null);
   const cur = STAGE_MODES.find((m) => m.key === view) || STAGE_MODES[0];
@@ -360,9 +360,10 @@ export function StageSwitcher({ view, onPick }) {
 
   return (
     <div className="hs-dd" ref={box}>
-      <button className="hs-dd-btn" aria-haspopup="listbox" aria-expanded={open} aria-label={`نوع نمایش: ${cur.label}`}
+      <button className={`hs-dd-btn ${compact ? "is-compact" : ""}`} aria-haspopup="listbox" aria-expanded={open}
+        aria-label={`نوع نمایش: ${cur.label}`} title={compact ? `نوع نمایش: ${cur.label}` : undefined}
         onClick={() => setOpen((o) => !o)}>
-        <CurIcon size={16} /> <span>{cur.label}</span> <ChevronDown size={15} className={`hs-dd-chev ${open ? "open" : ""}`} />
+        <CurIcon size={compact ? 18 : 16} /> {!compact && <span>{cur.label}</span>} <ChevronDown size={15} className={`hs-dd-chev ${open ? "open" : ""}`} />
       </button>
       {open && (
         <ul className="hs-dd-menu" role="listbox" aria-label="نوع نمایش">

@@ -2543,6 +2543,7 @@ select{cursor:pointer}
 }
 .hs-dd-btn:hover,.hs-dd-btn[aria-expanded="true"]{border-color:var(--gold)}
 .hs-dd-btn:active{transform:scale(.97)}
+.hs-dd-btn.is-compact{padding:9px 12px;gap:6px}
 .hs-dd-chev{opacity:.7;transition:transform .25s var(--ease)}
 .hs-dd-chev.open{transform:rotate(180deg)}
 .hs-dd-menu{
