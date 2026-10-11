@@ -209,12 +209,13 @@ export function VodBrowser({
     if (rows.featured.length && rows.featured.length < works.length) {
       list.push({ key: "featured", title: "آثار شاخص", hint: "انتخاب مجموعه", items: rows.featured, wide: true, Icon: Star, accent: "#e8b04b", variant: "lead" });
     }
-    const topOk = rows.top.length >= 3;
+    // با داده‌های واقعی فقط چند اثر عدد بازدید دارند؛ پس از ۱ اثر هم ردیف نمایش داده می‌شود (در فعالیت‌های کوچک همان ۳ اثر قبلی)
+    const topOk = rows.top.length >= (rows.mode === "few" ? 3 : 1);
     if (topOk || rows.mode === "few") {
       list.push({
         key: "top", title: topOk || rows.mode !== "few" ? "پربازدیدترین‌ها" : "آثار این فعالیت",
         hint: topOk ? "رتبه‌بندی بر اساس بازدید" : undefined,
-        items: topOk ? rows.top : rows.all, ranked: topOk, limit: topOk ? 10 : 0,
+        items: topOk ? rows.top : rows.all, ranked: topOk && rows.top.length >= 2, limit: topOk ? 10 : 0,
         Icon: topOk ? Flame : Layers, accent: "#ef6a5b", variant: "lead",
       });
     }

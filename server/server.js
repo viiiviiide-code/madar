@@ -346,8 +346,10 @@ const coverStmt = db.prepare(
           OR lower(w.url) LIKE '%.svg' OR lower(w.url) LIKE '%.bmp')
    ORDER BY w.featured DESC, (SELECT COALESCE(SUM(v.views),0) FROM work_platform_views v WHERE v.work_id=w.id) DESC, w.id DESC
    LIMIT 1`);
+// فقط اثری که واقعاً بازدید دارد «پربازدیدترین» حساب می‌شود؛ بدون عدد بازدید، null (دکمه نمایش داده نمی‌شود)
 const topWorkStmt = db.prepare(
   `SELECT w.id FROM works w WHERE w.project_id=?
+     AND (SELECT COALESCE(SUM(v.views),0) FROM work_platform_views v WHERE v.work_id=w.id) > 0
    ORDER BY (SELECT COALESCE(SUM(v.views),0) FROM work_platform_views v WHERE v.work_id=w.id) DESC, w.id DESC LIMIT 1`);
 const projectExtras = (id) => ({
   cover_url: (coverStmt.get(id) || {}).url || null,
