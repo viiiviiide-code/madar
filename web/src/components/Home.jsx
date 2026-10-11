@@ -37,19 +37,13 @@ export default function Home({
   const activeTemplate = isTemplate ? templates.find((t) => String(t.id) === String(mode.id)) : null;
   const [tplEditTarget, setTplEditTarget] = useState(null);
 
-  // نمای صفحهٔ اول: انتخاب خود کاربر (روی همین دستگاه، جدا برای هر حالت) > تم تمپلیت > پیش‌فرض سایت > سینما
+  // نمای صفحهٔ اول: همیشه «پرده‌ها» وقتی صفحه باز می‌شود (ورود، لاگین، برگشت از صفحات دیگر).
+  // کاربر می‌تواند در همان بازدید حالت را عوض کند؛ ذخیره نمی‌شود و دفعهٔ بعد دوباره پرده‌هاست.
   const scopeKey = isTemplate ? `tpl-${mode.id}` : isNone ? "all" : "date";
-  const readView = (k) => { try { return normalizeStageMode(localStorage.getItem(`madar_home_view:${k}`)); } catch { return null; } };
-  const [override, setOverride] = useState(() => readView(scopeKey));
-  useEffect(() => { setOverride(readView(scopeKey)); }, [scopeKey]);
-  const view = override
-    || (isTemplate ? normalizeStageMode(activeTemplate?.theme) : null)
-    || normalizeStageMode(settings.home_view)
-    || "cinema";
-  const pickView = (k) => {
-    setOverride(k);
-    try { localStorage.setItem(`madar_home_view:${scopeKey}`, k); } catch {}
-  };
+  const [override, setOverride] = useState(null);
+  useEffect(() => { setOverride(null); }, [scopeKey]);
+  const view = override || "panels";
+  const pickView = (k) => setOverride(k);
 
   // same lock rule as ProjectPage/WorkPage: a locked template's activities can only
   // be dragged/edited/deleted from this canvas by the archive owner. everyone else
