@@ -165,6 +165,18 @@ addCol("templates", "created_by", "INTEGER"); // who made this template — lets
 // templates stay visible to them even though other admins' own templates are now hidden from them
 addCol("projects", "created_by", "INTEGER"); // same idea, for an activity made with no template at all
 
+/* read-path indexes. every work card is looked up by work_id / project_id; without these each
+   lookup scans the whole table. IF NOT EXISTS makes it idempotent, and it never touches row data. */
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_works_project       ON works(project_id);
+  CREATE INDEX IF NOT EXISTS idx_work_keywords_work  ON work_keywords(work_id);
+  CREATE INDEX IF NOT EXISTS idx_work_media_work     ON work_media(work_id);
+  CREATE INDEX IF NOT EXISTS idx_work_pv_work        ON work_platform_views(work_id);
+  CREATE INDEX IF NOT EXISTS idx_tv_broadcasts_work  ON tv_broadcasts(work_id);
+  CREATE INDEX IF NOT EXISTS idx_stats_project       ON stats(project_id);
+  CREATE INDEX IF NOT EXISTS idx_projects_template   ON projects(template_id);
+`);
+
 /* one-time addition of "screenshot" / "link" work types (existing installs already seeded) */
 const typesV2 = db.prepare("SELECT value FROM settings WHERE key='types_v2_seeded'").get();
 if (!typesV2) {

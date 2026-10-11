@@ -2645,3 +2645,24 @@ select{cursor:pointer}
   transition:color var(--dur) var(--ease),background var(--dur) var(--ease);
 }
 .vod-clear:hover{color:var(--coral);background:color-mix(in srgb,var(--coral) 10%,transparent)}
+
+/* ---- بارگذاری تنبل / تکه‌تکه ---- */
+.chunk-sentinel{height:1px;width:100%;grid-column:1 / -1;flex-basis:100%}
+.lazy-media{position:relative}
+.vod-thumb > .lazy-media > .media-wrap,.vod-thumb > .lazy-media > .media-ph{height:100%;width:100%}
+
+/* کارت انتهای ردیف: «N اثر دیگر» */
+.vod-more{
+  flex:0 0 clamp(150px,13vw,200px);aspect-ratio:16/9;align-self:flex-start;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  border-radius:14px;border:1px dashed var(--line);color:var(--muted);scroll-snap-align:start;
+  transition:border-color var(--dur) var(--ease),color var(--dur) var(--ease),background var(--dur) var(--ease),transform .12s var(--ease);
+}
+.vod-more b{font-family:var(--font-display);font-weight:400;font-size:30px;line-height:1;color:var(--ink)}
+.vod-more span{font-size:12.5px}
+.vod-more i{font-style:normal;display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-size:12.5px;font-weight:700;color:var(--gold)}
+.vod-more:hover{border-color:var(--gold);background:var(--gold-soft)}
+.vod-more:active{transform:scale(.97)}
+
+/* پوستر هیرو: تصویر سبک تا رسیدن تیزر، بعد محو می‌شود */
+.studio-poster{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;transition:opacity .7s var(--ease)}
+.studio-poster.hide{opacity:0}

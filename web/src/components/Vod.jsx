@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, ChevronLeft, ChevronDown, Play, Eye, Star, Search, X, SearchX, FolderOpen, ArrowRight, SlidersHorizontal, Check } from "lucide-react";
 import { toFa } from "../jalali";
-import { Media } from "./ProjectPage.jsx";
+import { LazyMedia } from "./ProjectPage.jsx";
+import { useChunked } from "./Lazy.jsx";
 import { EmptyState } from "./States.jsx";
 
 // نمای «پلتفرم ویدیو» برای حالت نمایش: ردیف‌های افقی از آثار، کارت‌های پوستری،
@@ -24,7 +25,7 @@ export function VodCard({ work, typeLabel, onOpen, rank, wide }) {
       {rank > 0 && <span className="vod-rank" aria-hidden="true">{toFa(rank)}</span>}
       <div className="vod-poster">
         <div className="vod-thumb">
-          <Media work={work} />
+          <LazyMedia work={work} fill />
           <span className="vod-type">{typeLabel(work.type)}</span>
           {!!work.featured && <span className="vod-star" title="اثر شاخص"><Star size={13} fill="currentColor" /></span>}
           <span className="vod-shade" />
@@ -42,7 +43,7 @@ export function VodCard({ work, typeLabel, onOpen, rank, wide }) {
   );
 }
 
-export function VodRow({ title, hint, items, typeLabel, onOpen, ranked, wide, onSeeAll, total, lead, seeAllLabel }) {
+export function VodRow({ title, hint, items, typeLabel, onOpen, ranked, wide, onSeeAll, total, lead, seeAllLabel, max = 24 }) {
   const scroller = useRef(null);
   const [edge, setEdge] = useState({ prev: false, next: false });
 
@@ -71,6 +72,9 @@ export function VodRow({ title, hint, items, typeLabel, onOpen, ranked, wide, on
     el.scrollBy({ left: step, behavior: "smooth" });
   };
 
+  // ردیف فقط max کارت اول را می‌سازد؛ بقیه پشت کارت «نمایش همه» می‌ماند (صدها کارت یک‌جا نمی‌سازیم)
+  const visible = max && items.length > max ? items.slice(0, max) : items;
+  const hidden = items.length - visible.length;
   if (!items.length && !lead) return null;
   return (
     <section className="vod-row" aria-label={title}>
@@ -91,9 +95,14 @@ export function VodRow({ title, hint, items, typeLabel, onOpen, ranked, wide, on
         )}
         <div className="vod-scroller" ref={scroller} onScroll={measure}>
           {lead}
-          {items.map((w, i) => (
+          {visible.map((w, i) => (
             <VodCard key={w.id} work={w} typeLabel={typeLabel} onOpen={onOpen} rank={ranked ? i + 1 : 0} wide={wide} />
           ))}
+          {hidden > 0 && onSeeAll && (
+            <button className="vod-more" onClick={onSeeAll}>
+              <b>{toFa(hidden)}+</b><span>اثر دیگر</span><i>نمایش همه <ChevronLeft size={16} /></i>
+            </button>
+          )}
         </div>
         {edge.next && (
           <button className="vod-arrow next" onClick={() => page(1)} aria-label="بعدی"><ChevronLeft size={22} /></button>
@@ -237,6 +246,9 @@ export function VodBrowser({
     if (seeAllSort === "old") return copy.sort((a, b) => d(a).localeCompare(d(b)) || a.id - b.id);
     return copy.sort((a, b) => d(b).localeCompare(d(a)) || b.id - a.id);
   }, [current, seeAllSort]);
+  // شبکه‌های «نمایش همه» و «نتایج» تکه‌تکه رندر می‌شوند
+  const seeAllChunk = useChunked(currentItems, 36, `${seeAll}|${seeAllSort}`);
+  const resultsChunk = useChunked(works, 36, `${q}|${type}|${featuredOnly}`);
 
   return (
     <div className="vod-browser" id="vod-rows">
@@ -272,7 +284,8 @@ export function VodBrowser({
             </div>
           </header>
           <div className={`vod-grid ${current.wide ? "wide" : ""}`}>
-            {currentItems.map((w) => <VodCard key={w.id} work={w} typeLabel={typeLabel} onOpen={onOpen} wide={current.wide} />)}
+            {seeAllChunk.shown.map((w) => <VodCard key={w.id} work={w} typeLabel={typeLabel} onOpen={onOpen} wide={current.wide} />)}
+            {seeAllChunk.sentinel}
           </div>
         </section>
       ) : works.length === 0 ? (
@@ -287,7 +300,8 @@ export function VodBrowser({
             <span className="vod-row-hint">{toFa(works.length)} اثر</span>
           </header>
           <div className="vod-grid">
-            {works.map((w) => <VodCard key={w.id} work={w} typeLabel={typeLabel} onOpen={onOpen} />)}
+            {resultsChunk.shown.map((w) => <VodCard key={w.id} work={w} typeLabel={typeLabel} onOpen={onOpen} />)}
+            {resultsChunk.sentinel}
           </div>
         </section>
       ) : (

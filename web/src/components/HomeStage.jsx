@@ -4,7 +4,8 @@ import {
 } from "lucide-react";
 import { api } from "../api";
 import { toFa, formatJalaliMonth } from "../jalali";
-import { gradFor, mediaKind } from "./ProjectPage.jsx";
+import { gradFor } from "./ProjectPage.jsx";
+import { autoplayAllowed, ThumbImg } from "./Lazy.jsx";
 import { VodRow } from "./Vod.jsx";
 import { EmptyState } from "./States.jsx";
 
@@ -29,33 +30,18 @@ const rangeText = (p) =>
     : "بدون تاریخ";
 const two = (n) => toFa(String(n).padStart(2, "0"));
 
-/* ---- آثار هر فعالیت (برای کاور و ردیف‌ها)؛ یک‌بار برای هر شناسه گرفته می‌شود ---- */
-function useWorksMap(items) {
-  const [map, setMap] = useState({});
-  const ids = items.map((p) => p.id).join(",");
-  useEffect(() => {
-    let off = false;
-    items.forEach((p) => {
-      if (map[p.id]) return;
-      api.works({ projectId: p.id, sort: "views" })
-        .then((w) => { if (!off) setMap((m) => ({ ...m, [p.id]: Array.isArray(w) ? w : [] })); })
-        .catch(() => { if (!off) setMap((m) => ({ ...m, [p.id]: [] })); });
-    });
-    return () => { off = true; };
-  }, [ids]);
-  const coverOf = (p) => {
-    const img = (map[p.id] || []).find((w) => w.url && mediaKind(w.url, w.type) === "image");
-    return img ? img.url : null;
-  };
-  return { map, coverOf };
-}
-
 /* ---- کاور: تصویر یا گرادیان؛ تیزر فقط وقتی play=true است بارگذاری و پخش می‌شود ---- */
-function Cover({ project, cover, play, eager }) {
+function Cover({ project, cover, play, eager, showImg = true, delay = 0, w = 480 }) {
   const vref = useRef(null);
   const [armed, setArmed] = useState(!!eager);
   const [ready, setReady] = useState(false);
-  useEffect(() => { if (play) setArmed(true); }, [play]);
+  // delay: تیزر (که ده‌ها مگابایت است) را بعد از رسیدن کاور و رابط شروع می‌کنیم تا پهنای باند را از آن‌ها نگیرد
+  useEffect(() => {
+    if (!play) return;
+    if (!delay) { setArmed(true); return; }
+    const t = setTimeout(() => setArmed(true), delay);
+    return () => clearTimeout(t);
+  }, [play, delay]);
   useEffect(() => {
     const v = vref.current;
     if (!v) return;
@@ -64,7 +50,7 @@ function Cover({ project, cover, play, eager }) {
   }, [play, armed]);
   return (
     <div className="hs-cover" style={{ background: gradFor(project.id) }}>
-      {cover && <img className="hs-cover-img" src={cover} alt="" loading="lazy" draggable="false" />}
+      {cover && showImg && <ThumbImg className="hs-cover-img" url={cover} w={w} alt="" loading="lazy" decoding="async" draggable="false" />}
       {project.teaser_url && armed && (
         <video ref={vref} className={`hs-cover-vid ${ready && play ? "on" : ""}`} src={project.teaser_url}
           muted loop playsInline preload="auto" onPlaying={() => setReady(true)} />
@@ -83,7 +69,7 @@ function EditBtn({ p, canEdit, onEdit }) {
 }
 
 /* =============================== ۱) سینما =============================== */
-function Cinema({ items, map, coverOf, onOpen, onOpenWork, canEdit, onEdit, autoplay }) {
+function Cinema({ items, coverOf, onOpen, onOpenWork, canEdit, onEdit, autoplay }) {
   const n = items.length;
   const [idx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -93,6 +79,7 @@ function Cinema({ items, map, coverOf, onOpen, onOpenWork, canEdit, onEdit, auto
   const raf = useRef(0);
   const swipe = useRef(null);
   const hoverT = useRef(0);
+  const okPlay = autoplayAllowed();
 
   useEffect(() => { if (idx >= n) setIdx(0); }, [n]);
   useEffect(() => { setManual(!autoplay); }, [autoplay]);
@@ -145,10 +132,11 @@ function Cinema({ items, map, coverOf, onOpen, onOpenWork, canEdit, onEdit, auto
         onPointerDown={onDown} onPointerUp={onUp} aria-roledescription="carousel" aria-label="فعالیت‌ها"
       >
         {items.map((p, i) => {
-          const top = (map[p.id] || [])[0];
+          const topId = p.top_work_id;
+          const dist = Math.abs(i - idx), near = dist <= 1 || dist === n - 1;
           return (
             <article key={p.id} className={`hs-slide ${i === idx ? "is-active" : ""}`} aria-hidden={i !== idx}>
-              <Cover project={p} cover={coverOf(p)} play={i === idx} eager={i === idx} />
+              <Cover project={p} cover={coverOf(p)} play={i === idx && okPlay} eager={false} showImg={near} delay={1500} w={1280} />
               <div className="hs-scrim" />
               <div className="hs-spot" />
               <div className="hs-content">
@@ -163,8 +151,8 @@ function Cinema({ items, map, coverOf, onOpen, onOpenWork, canEdit, onEdit, auto
                   <button className="btn gold hs-main" tabIndex={i === idx ? 0 : -1} onClick={() => onOpen(p.id)}>
                     <Play size={18} fill="currentColor" /> ورود به فعالیت
                   </button>
-                  {top && (
-                    <button className="btn light" tabIndex={i === idx ? 0 : -1} onClick={() => onOpenWork(p.id, top.id)}>
+                  {topId && (
+                    <button className="btn light" tabIndex={i === idx ? 0 : -1} onClick={() => onOpenWork(p.id, topId)}>
                       پربازدیدترین اثر
                     </button>
                   )}
@@ -245,22 +233,31 @@ function LeadCard({ p, cover, onOpen }) {
   );
 }
 
-function ActRow({ p, i, map, coverOf, typeLabel, onOpen, onOpenWork, canEdit, onEdit }) {
+function ActRow({ p, i, coverOf, typeLabel, onOpen, onOpenWork, canEdit, onEdit }) {
   const ref = useRef(null);
   const [seen, setSeen] = useState(false);
+  const [works, setWorks] = useState(null);
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof IntersectionObserver === "undefined") { setSeen(true); return; }
-    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setSeen(true); io.disconnect(); } }, { threshold: 0.12 });
+    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setSeen(true); io.disconnect(); } }, { rootMargin: "300px 0px", threshold: 0.05 });
     io.observe(el);
     return () => io.disconnect();
   }, []);
-  const works = (map[p.id] || []).slice(0, 14);
+  useEffect(() => {
+    if (!seen || works) return;
+    let off = false;
+    // فقط ۱۴ اثر برتر همین فعالیت (نه همهٔ آثار)؛ سرور هم فقط همین‌ها را می‌سازد
+    api.works({ projectId: p.id, sort: "views", limit: 14 })
+      .then((w) => { if (!off) setWorks(Array.isArray(w) ? w : []); })
+      .catch(() => { if (!off) setWorks([]); });
+    return () => { off = true; };
+  }, [seen, p.id]);
   return (
     <div ref={ref} className={`hs-actrow ${seen ? "seen" : ""}`} style={{ "--i": Math.min(i, 5) }}>
       <VodRow
         title={p.title} hint={`${rangeText(p)} · ${toFa(p.worksCount || 0)} اثر`}
-        items={works} typeLabel={typeLabel} onOpen={(w) => onOpenWork(p.id, w.id)}
+        items={works || []} typeLabel={typeLabel} onOpen={(w) => onOpenWork(p.id, w.id)}
         lead={<LeadCard p={p} cover={coverOf(p)} onOpen={onOpen} />}
         seeAllLabel="ورود به فعالیت" onSeeAll={() => onOpen(p.id)}
       />
@@ -287,7 +284,7 @@ function Panels({ items, coverOf, onOpen, canEdit, onEdit }) {
             onClick={() => (on ? onOpen(p.id) : setActive(i))}
             tabIndex={0} onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onOpen(p.id); } }}
             aria-label={p.title} aria-expanded={on}>
-            <Cover project={p} cover={coverOf(p)} play={on} />
+            <Cover project={p} cover={coverOf(p)} play={on} w={1280} />
             <span className="hs-panel-shade" />
             <span className="hs-panel-n">{two(i + 1)}</span>
             <span className="hs-panel-v">{p.title}</span>
@@ -308,7 +305,7 @@ function Panels({ items, coverOf, onOpen, canEdit, onEdit }) {
 
 /* =============================== ریشه =============================== */
 export default function HomeStage({ view, items, onOpen, onOpenWork, canEdit = () => false, onEdit = () => {}, autoplay = true }) {
-  const { map, coverOf } = useWorksMap(items);
+  const coverOf = (p) => p.cover_url || null;      // کاور از خود فهرست فعالیت‌ها می‌آید؛ دیگر آثار را نمی‌گیریم
   const [types, setTypes] = useState([]);
   useEffect(() => { api.types().then((t) => Array.isArray(t) && setTypes(t)).catch(() => {}); }, []);
   const typeLabel = (k) =>
@@ -322,7 +319,7 @@ export default function HomeStage({ view, items, onOpen, onOpenWork, canEdit = (
       </div>
     );
   }
-  const common = { items, map, coverOf, onOpen, onOpenWork, canEdit, onEdit };
+  const common = { items, coverOf, onOpen, onOpenWork, canEdit, onEdit };
   return (
     <section className="hs" data-view={view} aria-label="فعالیت‌ها">
       {view === "rows" ? <RowsMode {...common} typeLabel={typeLabel} />

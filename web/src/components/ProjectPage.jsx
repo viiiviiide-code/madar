@@ -7,6 +7,8 @@ import {
   SearchX, FolderOpen,
 } from "lucide-react";
 import { PageSkeleton, EmptyState } from "./States.jsx";
+import { LazyMount, useChunked, autoplayAllowed, ThumbImg } from "./Lazy.jsx";
+import { thumbOf } from "../thumbs";
 import { VodBrowser } from "./Vod.jsx";
 import { api } from "../api";
 import { formatJalali, toFa, faToEn, jalaliToISO, isValidISO } from "../jalali";
@@ -80,6 +82,8 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
   const stageRef   = useRef(null);
   const [isFs, setIsFs] = useState(false);
   const [muted, setMuted] = useState(true);
+  // فهرست آثار (نمای مدیر) تکه‌تکه رندر می‌شود؛ فعالیتی با ۵۰۰ اثر نباید ۵۰۰ کارت را یک‌جا بسازد
+  const chunk = useChunked(works, 40, `${type}|${q}|${sort}|${featuredOnly}|${viewMode}`);
 
   const typeLabel = (k) =>
     String(k || "").split(",").filter(Boolean)
@@ -119,9 +123,10 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
     const lastId = sessionStorage.getItem(`madar_lastwork_${projectId}`);
     if (!lastId) return;
     const el = document.getElementById(`work-${lastId}`) || document.querySelector(`[data-work-id="${lastId}"]`);
-    if (el) el.scrollIntoView({ block: "center" });
-    sessionStorage.removeItem(`madar_lastwork_${projectId}`);
-  }, [works, projectId]);
+    if (el) { el.scrollIntoView({ block: "center" }); sessionStorage.removeItem(`madar_lastwork_${projectId}`); }
+    else if (chunk.has) chunk.showAll();            // هنوز رندر نشده → همه را نشان بده؛ این افکت دوباره اجرا می‌شود
+    else sessionStorage.removeItem(`madar_lastwork_${projectId}`);
+  }, [works, projectId, chunk.count]);
 
   const goToWork = (workId) => {
     try { sessionStorage.setItem(`madar_lastwork_${projectId}`, String(workId)); } catch {}
@@ -152,6 +157,10 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
   const [hdrSlot, setHdrSlot] = useState(null);
   useEffect(() => { setHdrSlot(document.getElementById("topbar-slot")); }, []);
   const heroPage = !admin && !!project;
+  // ویدئوی تیزر ده‌ها مگابایت است؛ ۱٫۵ ثانیه بعد از نمایش صفحه شروع می‌شود تا کاورها و رابط پهنای باند را اول بگیرند
+  const [heroVid, setHeroVid] = useState(false);
+  const [heroPlaying, setHeroPlaying] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setHeroVid(true), 1500); return () => clearTimeout(t); }, [projectId]);
   useEffect(() => {
     const el = document.documentElement;
     if (heroPage) el.dataset.hero = "1"; else delete el.dataset.hero;
@@ -163,6 +172,7 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
 
   // «حالت نمایش» (غیرمدیر): نمای شبیه پلتفرم ویدیو — هیرو + ردیف‌های افقی
   const vod = !admin;
+  const autoplayOK = autoplayAllowed();
   const totalViews = works.reduce((s, w) => s + (Number(w.totalViews) || 0), 0);
 
   // a locked template can only be structurally changed by the archive owner —
@@ -299,12 +309,18 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
       <section className="studio">
         <div className="studio-frame cinematic" ref={stageRef}>
           {project.teaser_url ? (
-            <video
-              ref={videoRef}
-              className="studio-video cover"
-              src={project.teaser_url}
-              autoPlay muted loop playsInline
-            />
+            <>
+              <video
+                ref={videoRef}
+                className="studio-video cover"
+                src={heroVid || admin ? project.teaser_url : undefined}
+                onPlaying={() => setHeroPlaying(true)}
+                autoPlay={autoplayOK} muted loop playsInline preload={autoplayOK ? "auto" : "none"}
+              />
+              {project.cover_url && (
+                <ThumbImg className={`studio-poster ${heroPlaying ? "hide" : ""}`} url={project.cover_url} w={1280} alt="" decoding="async" />
+              )}
+            </>
           ) : (
             <div className="studio-empty" style={{ background: gradFor(project.id) }}>
               <Film size={46} strokeWidth={1.2} />
@@ -542,7 +558,7 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
 
         {viewMode === "grid" ? (
           <div className="works-grid">
-            {works.map((w) => (
+            {chunk.shown.map((w) => (
               <div key={w.id} id={`work-${w.id}`} className={`work-card ${w.featured ? "is-featured" : ""} ${selectMode && selectedIds.has(w.id) ? "is-selected" : ""}`} onClick={() => onCardClick(w)} onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onCardClick(w); } }} role="button" tabIndex={0}>
                 {selectMode && (
                   <label className="card-select-check" onClick={(e) => e.stopPropagation()}>
@@ -572,7 +588,7 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
                     </button>
                   </div>
                 )}
-                <Media work={w} />
+                <LazyMedia work={w} />
                 <div className="work-meta">
                   <div className="work-top">
                     <span className="chip">{typeLabel(w.type)}</span>
@@ -583,6 +599,7 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
                 </div>
               </div>
             ))}
+            {chunk.sentinel}
             {works.length === 0 && (
               hasFilters
                 ? <EmptyState icon={SearchX} title="اثری پیدا نشد" text="فیلترها یا عبارت جستجو را تغییر بده تا آثار بیشتری ببینی."
@@ -593,14 +610,14 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
           </div>
         ) : (
           <div className="works-list">
-            {works.map((w) => (
+            {chunk.shown.map((w) => (
               <div key={w.id} id={`work-${w.id}`} className={`work-row ${w.featured ? "is-featured" : ""} ${selectMode && selectedIds.has(w.id) ? "is-selected" : ""}`} onClick={() => onCardClick(w)} onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onCardClick(w); } }} role="button" tabIndex={0}>
                 {selectMode && (
                   <label className="card-select-check row-select-check" onClick={(e) => e.stopPropagation()}>
                     <input type="checkbox" checked={selectedIds.has(w.id)} onChange={() => toggleSelect(w.id)} />
                   </label>
                 )}
-                <div className="wr-thumb"><Media work={w} small /></div>
+                <div className="wr-thumb"><LazyMedia work={w} small /></div>
                 <div className="wr-body">
                   <div className="wr-line1">
                     <span className="chip">{typeLabel(w.type)}</span>
@@ -646,6 +663,7 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
                 </div>
               </div>
             ))}
+            {chunk.sentinel}
             {works.length === 0 && (
               hasFilters
                 ? <EmptyState icon={SearchX} title="اثری پیدا نشد" text="فیلترها یا عبارت جستجو را تغییر بده تا آثار بیشتری ببینی."
@@ -673,71 +691,135 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
 // every time the works list remounts, e.g. after navigating back from a work's page.
 const posterCache = new Map();
 
-export function VideoThumb({ url, className }) {
-  const [poster, setPoster] = useState(() => posterCache.get(url) || null);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    const cached = posterCache.get(url);
-    if (cached) { setPoster(cached); return; }
-    setPoster(null);
-    setFailed(false);
-    let cancelled = false;
-    const v = document.createElement("video");
-    v.muted = true; v.preload = "auto"; v.crossOrigin = "anonymous"; v.src = url;
-    const cleanup = () => { try { v.removeAttribute("src"); v.load(); } catch (e) {} };
+/* کش پایدار (IndexedDB): فریم هر ویدئو در هر مرورگر فقط یک‌بار گرفته می‌شود، نه در هر بازدید */
+let idbPromise = null;
+function idb() {
+  if (!idbPromise) {
+    idbPromise = new Promise((resolve) => {
+      try {
+        const req = indexedDB.open("madar-thumbs", 1);
+        req.onupgradeneeded = () => req.result.createObjectStore("t");
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+      } catch { resolve(null); }
+    });
+  }
+  return idbPromise;
+}
+async function idbGet(key) {
+  const db = await idb();
+  if (!db) return null;
+  return new Promise((res) => {
+    try { const r = db.transaction("t").objectStore("t").get(key); r.onsuccess = () => res(r.result || null); r.onerror = () => res(null); }
+    catch { res(null); }
+  });
+}
+async function idbSet(key, val) {
+  const db = await idb();
+  if (!db) return;
+  try { db.transaction("t", "readwrite").objectStore("t").put(val, key); } catch {}
+}
 
-    const captureFrame = () => {
-      try {
-        const c = document.createElement("canvas");
-        c.width = v.videoWidth || 320; c.height = v.videoHeight || 180;
-        const ctx = c.getContext("2d");
-        ctx.drawImage(v, 0, 0, c.width, c.height);
-        return { canvas: c, ctx };
-      } catch (e) { return null; }
+/* صف گرفتن فریم: حداکثر دو ویدئو هم‌زمان باز می‌شوند. قبلاً صفحه‌ای پر از کارت ویدئو
+   ده‌ها دانلود هم‌زمان از فایل‌های ده‌ها مگابایتی راه می‌انداخت. */
+const capQueue = [];
+let capRunning = 0;
+const CAP_MAX = 2;
+function capPump() {
+  while (capRunning < CAP_MAX && capQueue.length) {
+    const t = capQueue.shift();
+    if (t.cancelled) continue;
+    capRunning++;
+    t.run().then(t.resolve, () => t.resolve(null)).finally(() => { capRunning--; capPump(); });
+  }
+}
+function capEnqueue(run) {
+  const t = { cancelled: false, run };
+  t.promise = new Promise((resolve) => { t.resolve = resolve; });
+  capQueue.push(t);
+  capPump();
+  return t;
+}
+
+/* یک فریم نمایندهٔ ویدئو: فقط metadata می‌خواند، یک‌بار seek می‌کند (جایی نزدیک ابتدا که معمولاً
+   فقط چند صد کیلوبایت داده می‌خواهد)، و فقط اگر فریم سیاه بود یک‌بار دیگر تلاش می‌کند. */
+function captureFrame(url) {
+  return new Promise((resolve) => {
+    const v = document.createElement("video");
+    v.muted = true; v.playsInline = true; v.preload = "metadata";
+    let done = false;
+    const finish = (val) => {
+      if (done) return;
+      done = true; clearTimeout(timer);
+      v.removeAttribute("src"); try { v.load(); } catch {}
+      resolve(val);
     };
-    // sparse-sampled average brightness; if it looks black, try a later frame
-    const looksBlack = (ctx, w, h) => {
+    const timer = setTimeout(() => finish(null), 20000);
+    const grab = () => {
       try {
-        const { data } = ctx.getImageData(0, 0, w, h);
+        const w = v.videoWidth || 320, h = v.videoHeight || 180, sc = Math.min(1, 480 / w);
+        const c = document.createElement("canvas");
+        c.width = Math.max(1, Math.round(w * sc)); c.height = Math.max(1, Math.round(h * sc));
+        const g = c.getContext("2d");
+        g.drawImage(v, 0, 0, c.width, c.height);
+        return { c, g };
+      } catch { return null; }
+    };
+    const dark = (g, w, h) => {
+      try {
+        const { data } = g.getImageData(0, 0, w, h);
         let sum = 0, n = 0;
         for (let i = 0; i < data.length; i += 4 * 37) { sum += data[i] + data[i + 1] + data[i + 2]; n++; }
         return n > 0 && sum / (n * 3) < 12;
-      } catch (e) { return false; } // tainted/cross-origin canvas — can't inspect, accept the frame
+      } catch { return false; }
     };
-
-    const onLoaded = () => {
-      const dur = (v.duration && isFinite(v.duration)) ? v.duration : 2;
-      const candidates = [0.15, 0.35, 0.55, 0.8].map((f) => Math.max(0.1, Math.min(dur * f, Math.max(dur - 0.1, 0.1))));
-
-      const attempt = (i) => {
-        if (cancelled) return;
-        const onSeeked = () => {
-          if (cancelled) return;
-          const frame = captureFrame();
-          if (!frame) { setFailed(true); cleanup(); return; }
-          const black = looksBlack(frame.ctx, frame.canvas.width, frame.canvas.height);
-          if (black && i < candidates.length - 1) { attempt(i + 1); return; }
-          try {
-            const data = frame.canvas.toDataURL("image/jpeg", 0.7);
-            posterCache.set(url, data);
-            setPoster(data);
-          } catch (e) { setFailed(true); }
-          cleanup();
-        };
-        v.addEventListener("seeked", onSeeked, { once: true });
-        try { v.currentTime = candidates[i]; } catch (e) { if (!cancelled) setFailed(true); cleanup(); }
+    v.addEventListener("error", () => finish(null), { once: true });
+    v.addEventListener("loadedmetadata", () => {
+      const dur = isFinite(v.duration) && v.duration > 0 ? v.duration : 2;
+      const tries = [Math.min(1, dur * 0.1), dur * 0.35];
+      let i = 0;
+      const onSeeked = () => {
+        const f = grab();
+        if (!f) return finish(null);
+        if (dark(f.g, f.c.width, f.c.height) && i < tries.length - 1) { i++; return seek(); }
+        try { finish(f.c.toDataURL("image/jpeg", 0.72)); } catch { finish(null); }
       };
-      attempt(0);
-    };
-    v.addEventListener("loadeddata", onLoaded, { once: true });
-    v.addEventListener("error", () => { if (!cancelled) setFailed(true); }, { once: true });
-    return () => { cancelled = true; cleanup(); };
+      const seek = () => {
+        v.addEventListener("seeked", onSeeked, { once: true });
+        try { v.currentTime = Math.max(0.05, tries[i]); } catch { finish(null); }
+      };
+      seek();
+    }, { once: true });
+    v.src = url;
+  });
+}
+
+/* کاور ویدئو: بندانگشتی سرور (۱۱ کیلوبایت) به‌جای باز کردن خود ویدئو؛ فقط اگر نبود، فریم‌گیری مرورگر */
+function VideoCover({ url, className }) {
+  const [clientCapture, setClientCapture] = useState(!thumbOf(url, 480));
+  if (clientCapture) return <VideoThumb url={url} className={className} />;
+  return <ThumbImg url={url} w={480} className={className} onFail={() => setClientCapture(true)} loading="lazy" decoding="async" />;
+}
+
+export function VideoThumb({ url, className }) {
+  const [poster, setPoster] = useState(() => posterCache.get(url) || null);
+  useEffect(() => {
+    if (poster) return;
+    let off = false, task = null;
+    (async () => {
+      const cached = await idbGet(url);
+      if (off) return;
+      if (cached) { posterCache.set(url, cached); setPoster(cached); return; }
+      task = capEnqueue(() => (off ? Promise.resolve(null) : captureFrame(url)));
+      const data = await task.promise;
+      if (data) { posterCache.set(url, data); idbSet(url, data); }
+      if (!off && data) setPoster(data);
+    })();
+    return () => { off = true; if (task) task.cancelled = true; };
   }, [url]);
 
   if (poster) return <img className={className} src={poster} alt="" />;
-  // while the real frame is still being captured (or if capture fails outright),
-  // show a neutral placeholder instead of a raw <video> tag — an unseeked video
-  // element renders black, which is exactly the flash this component exists to avoid.
+  // تا گرفته‌شدن فریم (یا اگر نشد) گرادیان نشان می‌دهیم، نه یک <video> سیاه
   return (
     <div className={`${className} vt-placeholder`} style={{ background: gradFor(url) }}>
       <Play size={18} strokeWidth={1.6} />
@@ -781,10 +863,10 @@ export function Media({ work, small, big }) {
         </div>
       );
     }
-    // grid/list thumbnail: representative still frame
+    // grid/list thumbnail: بندانگشتی ساخته‌شده در سرور؛ اگر نشد، یک فریم در مرورگر گرفته می‌شود
     return (
       <div className="media-wrap">
-        <VideoThumb url={work.url} className="media media-contain" />
+        <VideoCover url={work.url} className="media media-contain" />
       </div>
     );
   }
@@ -798,7 +880,10 @@ export function Media({ work, small, big }) {
   if (work.url) {
     return (
       <div className={`media-wrap ${big ? "media-wrap-big" : ""}`}>
-        <img className="media media-contain" src={work.url} alt={work.title} />
+        {big || !thumbOf(work.url, 480)
+          ? <img className="media media-contain" src={work.url} alt={work.title}
+              loading={big ? undefined : "lazy"} decoding="async" />
+          : <ThumbImg className="media media-contain" url={work.url} w={480} alt={work.title} loading="lazy" decoding="async" />}
       </div>
     );
   }
@@ -807,6 +892,17 @@ export function Media({ work, small, big }) {
       <Icon size={big ? 54 : small ? 22 : 30} strokeWidth={1.4} />
       {big && <span className="media-ph-t">{work.title}</span>}
     </div>
+  );
+}
+
+/* Media که فقط وقتی کارت نزدیک صفحه است ساخته می‌شود؛ قبل از آن گرادیان هم‌ارتفاع نشان می‌دهد */
+export function LazyMedia({ work, small, fill }) {
+  const style = fill ? { position: "absolute", inset: 0 } : { height: small ? 80 : 160 };
+  return (
+    <LazyMount className="lazy-media" style={style}
+      placeholder={<div className="media media-ph" style={{ background: gradFor(work.id), height: "100%", minHeight: 0 }} />}>
+      <Media work={work} small={small} />
+    </LazyMount>
   );
 }
 

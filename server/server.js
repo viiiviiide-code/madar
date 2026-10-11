@@ -152,6 +152,7 @@ app.delete("/api/users/:id/permissions/:permId", requireOwner, (req, res) => {
 });
 
 const UP = path.join(__dirname, "..", "uploads");
+const thumbs = require("./thumbs").create(UP);   // بندانگشتی سبک (ffmpeg)؛ اگر ffmpeg نبود بی‌صدا غیرفعال است
 if (!fs.existsSync(UP)) fs.mkdirSync(UP, { recursive: true });
 app.use("/uploads", express.static(UP, {
   setHeaders: (res) => {
@@ -171,7 +172,17 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 200 * 1024 * 1024 } });
 app.post("/api/upload", requireAdmin, upload.single("file"), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "no file" });
-  res.json({ url: "/uploads/" + req.file.filename });
+  const url = "/uploads/" + req.file.filename;
+  res.json({ url });
+  thumbs.warm(url);   // بعد از پاسخ و در پس‌زمینه؛ آپلود را کند نمی‌کند
+});
+
+/* بندانگشتی سبک یک آپلود (۴۸۰ یا ۱۲۸۰ پیکسل). فقط با ورود؛ ساخت در صف و با اولویت پایین.
+   کلاینت اول آدرس ثابت /uploads/_thumbs/... را امتحان می‌کند و فقط اگر نبود، اینجا می‌خواهد. */
+app.get("/api/thumb", async (req, res) => {
+  const r = await thumbs.ensure(String(req.query.u || ""), Number(req.query.w) || 480);
+  if (r.error) return res.status(r.status || 404).json({ error: r.error });
+  res.json({ url: r.url, w: r.w });
 });
 
 /* ---------- per-user access scoping (template/activity level) ---------- */
@@ -325,12 +336,33 @@ function hydrateWork(w) {
   };
 }
 
-function hydrateProject(p) {
+/* a cover image and the most-viewed work for one activity. lets the home page and the activity hero
+   show something right away without fetching (and hydrating) every work. */
+const coverStmt = db.prepare(
+  `SELECT w.url FROM works w
+   WHERE w.project_id=? AND w.url LIKE '/uploads/%'
+     AND (lower(w.url) LIKE '%.jpg' OR lower(w.url) LIKE '%.jpeg' OR lower(w.url) LIKE '%.png'
+          OR lower(w.url) LIKE '%.webp' OR lower(w.url) LIKE '%.avif' OR lower(w.url) LIKE '%.gif'
+          OR lower(w.url) LIKE '%.svg' OR lower(w.url) LIKE '%.bmp')
+   ORDER BY w.featured DESC, (SELECT COALESCE(SUM(v.views),0) FROM work_platform_views v WHERE v.work_id=w.id) DESC, w.id DESC
+   LIMIT 1`);
+const topWorkStmt = db.prepare(
+  `SELECT w.id FROM works w WHERE w.project_id=?
+   ORDER BY (SELECT COALESCE(SUM(v.views),0) FROM work_platform_views v WHERE v.work_id=w.id) DESC, w.id DESC LIMIT 1`);
+const projectExtras = (id) => ({
+  cover_url: (coverStmt.get(id) || {}).url || null,
+  top_work_id: (topWorkStmt.get(id) || {}).id || null,
+});
+
+function hydrateProject(p, { withWorks = true } = {}) {
   if (!p) return p;
   const stats = db.prepare("SELECT * FROM stats WHERE project_id=? ORDER BY sort_order").all(p.id);
-  const works = db.prepare("SELECT * FROM works WHERE project_id=? ORDER BY datetime(created_at) DESC").all(p.id);
   const tpl = p.template_id ? db.prepare("SELECT locked FROM templates WHERE id=?").get(p.template_id) : null;
-  return { ...p, templateLocked: !!(tpl && tpl.locked), stats, works: works.map(hydrateWork) };
+  // hydrating every work is the expensive part (about 8 queries per work). Callers that don't need them skip it.
+  const works = withWorks
+    ? db.prepare("SELECT * FROM works WHERE project_id=? ORDER BY datetime(created_at) DESC").all(p.id).map(hydrateWork)
+    : [];
+  return { ...p, templateLocked: !!(tpl && tpl.locked), stats, works };
 }
 
 /* ---------- settings ---------- */
@@ -497,6 +529,7 @@ app.get("/api/projects", (req, res) => {
     ...p,
     worksCount: db.prepare("SELECT COUNT(*) c FROM works WHERE project_id=?").get(p.id).c,
     templateLocked: isTemplateLockedForProject(p.id),
+    ...projectExtras(p.id),
   }));
   res.json(out);
 });
@@ -514,7 +547,8 @@ app.get("/api/projects/:id", (req, res) => {
   if (!canSeeProject(req, req.params.id)) return res.status(403).json({ error: "دسترسی به این فعالیت را نداری" });
   const p = db.prepare("SELECT * FROM projects WHERE id=?").get(req.params.id);
   if (!p) return res.status(404).json({ error: "not found" });
-  res.json(hydrateProject(p));
+  // the activity page loads its works through GET /api/works; only embed them on request (?works=1)
+  res.json({ ...hydrateProject(p, { withWorks: req.query.works === "1" }), ...projectExtras(p.id) });
 });
 
 app.post("/api/projects", requireAdmin, (req, res) => {
@@ -677,17 +711,27 @@ app.get("/api/works", (req, res) => {
     args.push(like, like, like, like, like);
   }
   if (where.length) sql += " WHERE " + where.join(" AND ");
-  if (sort === "old")   sql += " ORDER BY datetime(w.created_at) ASC";
+  if (sort === "views") {
+    // used to hydrate every work just to order by views; sum in SQL instead
+    sql = sql.replace("SELECT DISTINCT w.*",
+      "SELECT DISTINCT w.*, (SELECT COALESCE(SUM(v.views),0) FROM work_platform_views v WHERE v.work_id=w.id) AS _views");
+    sql += " ORDER BY _views DESC, datetime(w.created_at) DESC";
+  }
+  else if (sort === "old")   sql += " ORDER BY datetime(w.created_at) ASC";
   else if (sort === "title") sql += " ORDER BY w.title COLLATE NOCASE";
   else sql += " ORDER BY datetime(w.created_at) DESC";
 
-  let rows = db.prepare(sql).all(...args).map(hydrateWork);
+  let rows = db.prepare(sql).all(...args);
   if (!projectId && isRestricted(req.user)) {
     const allowed = visibleProjectIdSet(req.user);
     rows = rows.filter((w) => allowed.has(w.project_id));
   }
-  if (sort === "views") rows = rows.sort((a, b) => b.totalViews - a.totalViews);
-  res.json(rows);
+  // optional paging: hydrate only the slice that is actually returned
+  res.setHeader("X-Total-Count", String(rows.length));
+  const limit = Math.max(0, parseInt(req.query.limit, 10) || 0);
+  const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+  if (limit) rows = rows.slice(offset, offset + limit);
+  res.json(rows.map(({ _views, ...w }) => hydrateWork(w)));
 });
 
 /* featured works belonging to a template (across all its projects) */

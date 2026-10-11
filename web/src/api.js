@@ -72,6 +72,7 @@ export const api = {
   saveSettings: (obj) => send("PUT")("/api/settings", obj),
 
   types: () => get("/api/types"),
+  thumb: (u, w = 480) => get("/api/thumb?u=" + encodeURIComponent(u) + "&w=" + w),
   addType: (t) => send("POST")("/api/types", t),
   delType: (id) => del("/api/types/" + id),
 

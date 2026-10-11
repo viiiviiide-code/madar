@@ -33,3 +33,6 @@ database-backup/
 database-backup-*/
 *.backup
 web/package-lock.json
+
+# static ffmpeg binary placed on the server by hand (not an npm dependency)
+bin/
