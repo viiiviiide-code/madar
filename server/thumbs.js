@@ -82,7 +82,8 @@ function create(UP) {
     try { if (fs.statSync(out).size > 0) return out; } catch (e) { /* هنوز نیست */ }
     fs.mkdirSync(DIR, { recursive: true });
     const tmp = `${out}.tmp-${process.pid}-${Date.now()}.jpg`;
-    const vf = `scale='min(${w},iw)':-2`;
+    // ویدئو: «thumbnail» از بین ۶۰ فریم بعد از نقطهٔ seek، نماینده‌ترین (نه سیاه) را برمی‌دارد
+    const vf = kind === "video" ? `thumbnail=60,scale='min(${w},iw)':-2` : `scale='min(${w},iw)':-2`;
     const attempt = async (ss) => {
       const a = ["-v", "error", "-y"];
       if (kind === "video") a.push("-ss", String(ss));
@@ -122,7 +123,6 @@ function create(UP) {
     w = WIDTHS.includes(Number(w)) ? Number(w) : 480;
     const v = validate(u);
     if (!v) return { status: 404, error: "فایل پشتیبانی‌شده‌ای با این آدرس نیست" };
-    if (v.kind === "video" && w > 480) w = 480;
     if (!(await probe())) return { status: 501, error: "ffmpeg روی سرور در دسترس نیست" };
     const key = `${v.file}|${w}`;
     if (!inflight.has(key)) {

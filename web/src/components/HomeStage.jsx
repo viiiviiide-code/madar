@@ -5,7 +5,7 @@ import {
 import { api } from "../api";
 import { toFa, formatJalaliMonth } from "../jalali";
 import { gradFor } from "./ProjectPage.jsx";
-import { autoplayAllowed, ThumbImg } from "./Lazy.jsx";
+import { heroDelayMs, ThumbImg } from "./Lazy.jsx";
 import { VodRow } from "./Vod.jsx";
 import { EmptyState } from "./States.jsx";
 
@@ -35,6 +35,10 @@ function Cover({ project, cover, play, eager, showImg = true, delay = 0, w = 480
   const vref = useRef(null);
   const [armed, setArmed] = useState(!!eager);
   const [ready, setReady] = useState(false);
+  // تصویر پایه تا رسیدن ویدئو: فریم خود تیزر (همان چیزی که بعداً پخش می‌شود)، نه کاور یک اثر دیگر.
+  // فقط اگر فعالیت تیزر ندارد یا فریمش در دسترس نبود، کاور اثر استفاده می‌شود.
+  const [teaserFrameFailed, setTeaserFrameFailed] = useState(false);
+  const baseUrl = project.teaser_url && !teaserFrameFailed ? project.teaser_url : cover;
   // delay: تیزر (که ده‌ها مگابایت است) را بعد از رسیدن کاور و رابط شروع می‌کنیم تا پهنای باند را از آن‌ها نگیرد
   useEffect(() => {
     if (!play) return;
@@ -50,7 +54,8 @@ function Cover({ project, cover, play, eager, showImg = true, delay = 0, w = 480
   }, [play, armed]);
   return (
     <div className="hs-cover" style={{ background: gradFor(project.id) }}>
-      {cover && showImg && <ThumbImg className="hs-cover-img" url={cover} w={w} alt="" loading="lazy" decoding="async" draggable="false" />}
+      {baseUrl && showImg && <ThumbImg className="hs-cover-img" url={baseUrl} w={w} alt="" loading="lazy" decoding="async" draggable="false"
+        onFail={() => { if (baseUrl === project.teaser_url) setTeaserFrameFailed(true); }} />}
       {project.teaser_url && armed && (
         <video ref={vref} className={`hs-cover-vid ${ready && play ? "on" : ""}`} src={project.teaser_url}
           muted loop playsInline preload="auto" onPlaying={() => setReady(true)} />
@@ -79,7 +84,6 @@ function Cinema({ items, coverOf, onOpen, onOpenWork, canEdit, onEdit, autoplay 
   const raf = useRef(0);
   const swipe = useRef(null);
   const hoverT = useRef(0);
-  const okPlay = autoplayAllowed();
 
   useEffect(() => { if (idx >= n) setIdx(0); }, [n]);
   useEffect(() => { setManual(!autoplay); }, [autoplay]);
@@ -136,7 +140,7 @@ function Cinema({ items, coverOf, onOpen, onOpenWork, canEdit, onEdit, autoplay 
           const dist = Math.abs(i - idx), near = dist <= 1 || dist === n - 1;
           return (
             <article key={p.id} className={`hs-slide ${i === idx ? "is-active" : ""}`} aria-hidden={i !== idx}>
-              <Cover project={p} cover={coverOf(p)} play={i === idx && okPlay} eager={false} showImg={near} delay={1500} w={1280} />
+              <Cover project={p} cover={coverOf(p)} play={i === idx} eager={false} showImg={near} delay={heroDelayMs()} w={1280} />
               <div className="hs-scrim" />
               <div className="hs-spot" />
               <div className="hs-content">

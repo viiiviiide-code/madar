@@ -7,7 +7,7 @@ import {
   SearchX, FolderOpen,
 } from "lucide-react";
 import { PageSkeleton, EmptyState } from "./States.jsx";
-import { LazyMount, useChunked, autoplayAllowed, ThumbImg } from "./Lazy.jsx";
+import { LazyMount, useChunked, heroDelayMs, ThumbImg } from "./Lazy.jsx";
 import { thumbOf } from "../thumbs";
 import { VodBrowser } from "./Vod.jsx";
 import { api } from "../api";
@@ -160,7 +160,8 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
   // ویدئوی تیزر ده‌ها مگابایت است؛ ۱٫۵ ثانیه بعد از نمایش صفحه شروع می‌شود تا کاورها و رابط پهنای باند را اول بگیرند
   const [heroVid, setHeroVid] = useState(false);
   const [heroPlaying, setHeroPlaying] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setHeroVid(true), 1500); return () => clearTimeout(t); }, [projectId]);
+  const [posterOk, setPosterOk] = useState(true);   // فریم خود تیزر؛ اگر نبود پوستر نشان نمی‌دهیم (تصویر یک اثر دیگر جایش نمی‌آید)
+  useEffect(() => { setPosterOk(true); setHeroPlaying(false); const t = setTimeout(() => setHeroVid(true), heroDelayMs()); return () => clearTimeout(t); }, [projectId]);
   useEffect(() => {
     const el = document.documentElement;
     if (heroPage) el.dataset.hero = "1"; else delete el.dataset.hero;
@@ -172,7 +173,6 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
 
   // «حالت نمایش» (غیرمدیر): نمای شبیه پلتفرم ویدیو — هیرو + ردیف‌های افقی
   const vod = !admin;
-  const autoplayOK = autoplayAllowed();
   const totalViews = works.reduce((s, w) => s + (Number(w.totalViews) || 0), 0);
 
   // a locked template can only be structurally changed by the archive owner —
@@ -315,10 +315,11 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
                 className="studio-video cover"
                 src={heroVid || admin ? project.teaser_url : undefined}
                 onPlaying={() => setHeroPlaying(true)}
-                autoPlay={autoplayOK} muted loop playsInline preload={autoplayOK ? "auto" : "none"}
+                autoPlay muted loop playsInline preload="auto"
               />
-              {project.cover_url && (
-                <ThumbImg className={`studio-poster ${heroPlaying ? "hide" : ""}`} url={project.cover_url} w={1280} alt="" decoding="async" />
+              {posterOk && (
+                <ThumbImg className={`studio-poster ${heroPlaying ? "hide" : ""}`} url={project.teaser_url} w={1280} alt=""
+                  decoding="async" onFail={() => setPosterOk(false)} />
               )}
             </>
           ) : (

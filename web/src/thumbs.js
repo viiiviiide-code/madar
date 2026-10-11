@@ -12,7 +12,7 @@ export function thumbOf(url, w = 480) {
   const f = m[1];
   const video = VIDEO.test(f);
   if (!video && !RASTER.test(f)) return null;
-  return `/uploads/_thumbs/${f}.w${video ? 480 : (w >= 1000 ? 1280 : 480)}.jpg`;
+  return `/uploads/_thumbs/${f}.w${w >= 1000 ? 1280 : 480}.jpg`;
 }
 
 let unavailable = false;          // اگر سرور ffmpeg ندارد، دیگر تلاش نمی‌کنیم

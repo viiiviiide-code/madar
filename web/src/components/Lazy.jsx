@@ -45,14 +45,14 @@ export function useChunked(items, step = 36, resetKey = "") {
   };
 }
 
-/* اتصال کند یا حالت صرفه‌جویی در داده؟ پخش خودکار تیزرهای حجیم را خاموش می‌کنیم */
-export function autoplayAllowed() {
+/* تأخیر شروع پخش تیزر هیرو: به کاور و رابط فرصت می‌دهیم اول برسند. تیزر همیشه پخش می‌شود
+   (مثل قبل)؛ فقط روی اتصال کند دیرتر شروع می‌شود. */
+export function heroDelayMs() {
   try {
     const c = navigator.connection;
-    if (!c) return true;
-    if (c.saveData) return false;
-    return !["slow-2g", "2g", "3g"].includes(c.effectiveType);
-  } catch { return true; }
+    if (c && ["slow-2g", "2g", "3g"].includes(c.effectiveType)) return 4000;
+  } catch { /* مرورگر بدون این API */ }
+  return 1500;
 }
 
 /* تصویر با بندانگشتی سبک: اول آدرس ثابت بندانگشتی؛ اگر نبود یک‌بار از سرور می‌خواهد بسازد؛
