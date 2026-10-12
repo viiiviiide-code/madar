@@ -4,6 +4,7 @@ import { toFa } from "../jalali";
 import { LazyMedia } from "./ProjectPage.jsx";
 import { useChunked } from "./Lazy.jsx";
 import { EmptyState } from "./States.jsx";
+import { workMatches, matchHint } from "../search";
 
 // نمای «پلتفرم ویدیو» برای حالت نمایش: ردیف‌های افقی از آثار، کارت‌های پوستری،
 // و یک ردیف رتبه‌بندی‌شده. وقتی جستجو یا فیلتر فعال است، به‌جای ردیف‌ها شبکهٔ نتایج می‌آید.
@@ -22,7 +23,7 @@ export function flashCard(el) {
   setTimeout(() => card.classList.remove("vod-flash"), 2600);
 }
 
-export function VodCard({ work, typeLabel, onOpen, rank, wide }) {
+export function VodCard({ work, typeLabel, onOpen, rank, wide, hint }) {
   const open = () => onOpen(work);
   return (
     <div
@@ -43,6 +44,7 @@ export function VodCard({ work, typeLabel, onOpen, rank, wide }) {
         </div>
         <div className="vod-info">
           <h3>{work.title}</h3>
+          {hint && <span className="vod-match">{hint}</span>}
           <p>
             <span className="vod-views"><Eye size={12} /> {fmt(work.totalViews)}</span>
             {(work.axis || work.campaign) && <span className="vod-sub">{[work.axis, work.campaign].filter(Boolean).join(" · ")}</span>}
@@ -195,13 +197,14 @@ function FilterDropdown({ types, type, setType, featuredOnly, setFeaturedOnly })
 export function VodBrowser({
   works, types, typeLabel, onOpen,
   q, setQ, type, setType, featuredOnly, setFeaturedOnly,
-  initialSeeAll = null, initialSort = "new", onSeeAllChange, restoreWorkId = null,
+  initialSeeAll = null, initialSort = "new", initialSeeAllQ = "", onSeeAllChange, restoreWorkId = null,
 }) {
   const hasFilters = !!q || type !== "all" || featuredOnly;
   const [seeAll, setSeeAll] = useState(initialSeeAll);       // کلید ردیفی که در حالت «نمایش همه» است (با برگشت از صفحهٔ اثر بازیابی می‌شود)
   const [seeAllSort, setSeeAllSort] = useState(initialSort || "new");
   // برای ذخیره در ProjectPage: برگشت از صفحهٔ اثر باید به همین «نمایش همه» برگردد
-  useEffect(() => { onSeeAllChange?.(seeAll, seeAllSort); }, [seeAll, seeAllSort]);
+  const [seeAllQ, setSeeAllQ] = useState(initialSeeAllQ || "");   // جستجو فقط داخل همین دسته
+  useEffect(() => { onSeeAllChange?.(seeAll, seeAllSort, seeAllQ); }, [seeAll, seeAllSort, seeAllQ]);
 
   const rows = useMemo(() => {
     const byDate = (a, b) => String(b.event_date || "").localeCompare(String(a.event_date || "")) || b.id - a.id;
@@ -254,8 +257,8 @@ export function VodBrowser({
   );
 
   const goTop = () => document.getElementById("vod-rows")?.scrollIntoView({ block: "start" });
-  const openAll = (key) => { setSeeAll(key); setSeeAllSort("new"); requestAnimationFrame(goTop); };
-  const closeAll = () => { setSeeAll(null); requestAnimationFrame(goTop); };
+  const openAll = (key) => { setSeeAll(key); setSeeAllSort("new"); setSeeAllQ(""); requestAnimationFrame(goTop); };
+  const closeAll = () => { setSeeAll(null); setSeeAllQ(""); requestAnimationFrame(goTop); };
 
   // فیلتر یا جستجو که فعال شد، از حالت «نمایش همه» خارج می‌شویم
   useEffect(() => { if (hasFilters) setSeeAll(null); }, [hasFilters]);
@@ -270,13 +273,13 @@ export function VodBrowser({
   const currentItems = useMemo(() => {
     if (!current) return [];
     const d = (a) => String(a.event_date || "");
-    const copy = [...current.items];
+    const copy = seeAllQ.trim() ? current.items.filter((w) => workMatches(w, seeAllQ)) : [...current.items];
     if (seeAllSort === "views") return copy.sort((a, b) => (b.totalViews || 0) - (a.totalViews || 0));
     if (seeAllSort === "old") return copy.sort((a, b) => d(a).localeCompare(d(b)) || a.id - b.id);
     return copy.sort((a, b) => d(b).localeCompare(d(a)) || b.id - a.id);
-  }, [current, seeAllSort]);
+  }, [current, seeAllSort, seeAllQ]);
   // شبکه‌های «نمایش همه» و «نتایج» تکه‌تکه رندر می‌شوند
-  const seeAllChunk = useChunked(currentItems, 36, `${seeAll}|${seeAllSort}`);
+  const seeAllChunk = useChunked(currentItems, 36, `${seeAll}|${seeAllSort}|${seeAllQ}`);
   const resultsChunk = useChunked(works, 36, `${q}|${type}|${featuredOnly}`);
 
   // برگشت از صفحهٔ یک اثر: کارت همان اثر را در شبکهٔ «نمایش همه» پیدا کن و وسط صفحه بیاور
@@ -297,7 +300,7 @@ export function VodBrowser({
         <div className="vod-filters">
           <div className="vod-search">
             <Search size={16} />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="جستجو در آثار…" aria-label="جستجو در آثار" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="جستجو در عنوان، شرح، محور، کمپین، کلیدواژه…" aria-label="جستجو در عنوان، شرح، محور، کمپین و کلیدواژه" />
             {q && <button className="x-btn" onClick={() => setQ("")} aria-label="پاک‌کردن جستجو"><X size={14} /></button>}
           </div>
           <FilterDropdown types={usedTypes} type={type} setType={setType}
@@ -316,7 +319,7 @@ export function VodBrowser({
           <header className="vod-seeall-head">
             <div>
               <h2>{current.title}</h2>
-              <p>{toFa(currentItems.length)} اثر</p>
+              <p>{seeAllQ.trim() ? `${toFa(currentItems.length)} از ${toFa(current.items.length)} اثر` : `${toFa(currentItems.length)} اثر`}</p>
             </div>
             <div className="vod-pills" role="group" aria-label="مرتب‌سازی">
               {[["new", "جدیدترین"], ["views", "پربازدیدترین"], ["old", "قدیمی‌ترین"]].map(([k, l]) => (
@@ -324,10 +327,23 @@ export function VodBrowser({
               ))}
             </div>
           </header>
-          <div className={`vod-grid ${current.wide ? "wide" : ""}`}>
-            {seeAllChunk.shown.map((w) => <VodCard key={w.id} work={w} typeLabel={typeLabel} onOpen={onOpen} wide={current.wide} />)}
-            {seeAllChunk.sentinel}
+          <div className="vod-seeall-tools">
+            <div className="vod-search">
+              <Search size={16} />
+              <input value={seeAllQ} onChange={(e) => setSeeAllQ(e.target.value)}
+                placeholder={`جستجو در ${current.title}: عنوان، شرح، محور، کمپین، کلیدواژه…`} aria-label={`جستجو در ${current.title}`} />
+              {seeAllQ && <button className="x-btn" onClick={() => setSeeAllQ("")} aria-label="پاک‌کردن جستجو"><X size={14} /></button>}
+            </div>
           </div>
+          {currentItems.length === 0 ? (
+            <EmptyState icon={SearchX} title="اثری پیدا نشد" text={`در «${current.title}» اثری با این عبارت نیست. املا را بررسی کن یا کلمهٔ کمتری بنویس.`}
+              action={<button className="btn ghost sm" onClick={() => setSeeAllQ("")}>پاک‌کردن جستجو</button>} />
+          ) : (
+            <div className={`vod-grid ${current.wide ? "wide" : ""}`}>
+              {seeAllChunk.shown.map((w) => <VodCard key={w.id} work={w} typeLabel={typeLabel} onOpen={onOpen} wide={current.wide} hint={matchHint(w, seeAllQ)} />)}
+              {seeAllChunk.sentinel}
+            </div>
+          )}
         </section>
       ) : works.length === 0 ? (
         hasFilters
@@ -341,7 +357,7 @@ export function VodBrowser({
             <span className="vod-row-hint">{toFa(works.length)} اثر</span>
           </header>
           <div className="vod-grid">
-            {resultsChunk.shown.map((w) => <VodCard key={w.id} work={w} typeLabel={typeLabel} onOpen={onOpen} />)}
+            {resultsChunk.shown.map((w) => <VodCard key={w.id} work={w} typeLabel={typeLabel} onOpen={onOpen} hint={matchHint(w, q)} />)}
             {resultsChunk.sentinel}
           </div>
         </section>

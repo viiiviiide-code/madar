@@ -2807,3 +2807,11 @@ select{cursor:pointer}
   100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--gold) 0%,transparent);transform:scale(1)}
 }
 @media(prefers-reduced-motion:reduce){.vod-card.vod-flash .vod-thumb{animation:none;box-shadow:0 0 0 3px var(--gold)}}
+
+/* جستجو داخل صفحهٔ «نمایش همه» و برچسب «بر چه اساس پیدا شد» */
+.vod-seeall-tools{padding:0 var(--gutter) 14px}
+.vod-seeall-tools .vod-search{max-width:560px}
+.vod-match{
+  display:inline-block;margin-top:3px;padding:1px 9px;border-radius:20px;font-size:11.5px;font-weight:600;
+  color:var(--gold);background:var(--gold-soft);
+}

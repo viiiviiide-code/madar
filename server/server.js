@@ -3,6 +3,7 @@ const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const { makeMatcher } = require("./textsearch");
 const crypto = require("crypto");
 
 // بارگذاری سبک .env (بدون نیاز به پکیج dotenv) — اگر server/.env وجود داشته باشد.
@@ -692,13 +693,8 @@ app.get("/api/works", (req, res) => {
   // unified: q searches text fields AND keywords; legacy keyword param also supported
   const unifiedQ = q || keyword || "";
 
-  let sql, args = [];
-  if (unifiedQ) {
-    // LEFT JOIN keywords so we can match either text fields OR keyword
-    sql = "SELECT DISTINCT w.* FROM works w LEFT JOIN work_keywords k ON k.work_id=w.id";
-  } else {
-    sql = "SELECT DISTINCT w.* FROM works w";
-  }
+  let sql = "SELECT DISTINCT w.* FROM works w";
+  const args = [];
   const where = [];
   if (projectId) { where.push("w.project_id=?"); args.push(projectId); }
   // a work's "type" may hold several comma-separated keys (multi-type works), so
@@ -707,11 +703,8 @@ app.get("/api/works", (req, res) => {
   if (featured) { where.push("w.featured=1"); }
   if (from) { where.push("w.event_date>=?"); args.push(from); }
   if (to)   { where.push("w.event_date<=?"); args.push(to); }
-  if (unifiedQ) {
-    const like = "%" + unifiedQ + "%";
-    where.push("(w.title LIKE ? OR w.descr LIKE ? OR w.axis LIKE ? OR w.campaign LIKE ? OR k.text LIKE ?)");
-    args.push(like, like, like, like, like);
-  }
+  // متن جستجو بعد از خواندن ردیف‌ها (و بعد از فیلتر پروژه/نوع/تاریخ) در JS یکسان‌سازی و تطبیق داده می‌شود
+  // (LIKE در SQLite برای فارسی حساس به ی/ي، ک/ك و نیم‌فاصله است و کل عبارت را پشت‌سرهم می‌خواهد)
   if (where.length) sql += " WHERE " + where.join(" AND ");
   if (sort === "views") {
     // used to hydrate every work just to order by views; sum in SQL instead
@@ -724,6 +717,15 @@ app.get("/api/works", (req, res) => {
   else sql += " ORDER BY datetime(w.created_at) DESC";
 
   let rows = db.prepare(sql).all(...args);
+  const matcher = makeMatcher(unifiedQ);
+  if (matcher) {
+    const kwRows = projectId
+      ? db.prepare("SELECT k.work_id, k.text FROM work_keywords k JOIN works w ON w.id=k.work_id WHERE w.project_id=?").all(projectId)
+      : db.prepare("SELECT work_id, text FROM work_keywords").all();
+    const kw = new Map();
+    for (const r of kwRows) { const a = kw.get(r.work_id); if (a) a.push(r.text); else kw.set(r.work_id, [r.text]); }
+    rows = rows.filter((w) => matcher([w.title, w.descr, w.axis, w.campaign, ...(kw.get(w.id) || [])]));
+  }
   if (!projectId && isRestricted(req.user)) {
     const allowed = visibleProjectIdSet(req.user);
     rows = rows.filter((w) => allowed.has(w.project_id));

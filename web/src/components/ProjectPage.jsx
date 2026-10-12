@@ -66,7 +66,7 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
   const [featuredOnly, setFeaturedOnly] = useState(savedView?.featuredOnly || false);
   const [viewMode,setViewMode]= useState(savedView?.viewMode || "list");
   // «نمایش همه»ی ردیف‌ها (مثلاً همهٔ ویدئوها) هم با برگشت از صفحهٔ اثر حفظ شود
-  const [seeAllView, setSeeAllView] = useState({ key: savedView?.seeAll || null, sort: savedView?.seeAllSort || "new" });
+  const [seeAllView, setSeeAllView] = useState({ key: savedView?.seeAll || null, sort: savedView?.seeAllSort || "new", q: savedView?.seeAllQ || "" });
   const restoreWorkId = useRef(sessionStorage.getItem(`madar_lastwork_${projectId}`)).current;
   const [addOpen, setAddOpen] = useState(false);
   const [refresh, setRefresh] = useState(0);
@@ -105,18 +105,25 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
         if (np) onProjectLoaded?.(np);   // let the parent know which template this activity belongs to
       })
       .catch(() => setProject(null));
-  const loadWorks = () =>
-    api.works({ projectId, type, q, sort, ...(featuredOnly ? { featured: 1 } : {}) })
-      .then((w) => setWorks(Array.isArray(w) ? w : []))
-      .catch(() => setWorks([]));
+  // هر بار تایپ یک درخواست نفرستیم (۲۵۰ms مکث) و جواب قدیمی‌تر هرگز روی جواب جدیدتر ننشیند
+  const worksReq = useRef(0);
+  const loadWorks = () => {
+    const my = ++worksReq.current;
+    return api.works({ projectId, type, q, sort, ...(featuredOnly ? { featured: 1 } : {}) })
+      .then((w) => { if (my === worksReq.current) setWorks(Array.isArray(w) ? w : []); })
+      .catch(() => { if (my === worksReq.current) setWorks([]); });
+  };
 
   useEffect(() => { loadProject(); }, [projectId, refresh]);
-  useEffect(() => { loadWorks(); },  [projectId, type, q, sort, featuredOnly, refresh]);
+  useEffect(() => {
+    const t = setTimeout(loadWorks, q ? 250 : 0);
+    return () => clearTimeout(t);
+  }, [projectId, type, q, sort, featuredOnly, refresh]);
   useEffect(() => { if (canEditStats) api.statLabels().then((v) => setStatLabels(Array.isArray(v) ? v : [])).catch(() => {}); }, [canEditStats]);
 
   // remember filters + grid/list mode for this activity across navigation
   useEffect(() => {
-    saveProjectViewState(projectId, { q, type, sort, featuredOnly, viewMode, seeAll: seeAllView.key, seeAllSort: seeAllView.sort });
+    saveProjectViewState(projectId, { q, type, sort, featuredOnly, viewMode, seeAll: seeAllView.key, seeAllSort: seeAllView.sort, seeAllQ: seeAllView.q });
   }, [projectId, q, type, sort, featuredOnly, viewMode, seeAllView]);
 
   // after works load, if we're coming back from a work's page, scroll straight to it
@@ -499,8 +506,8 @@ export default function ProjectPage({ projectId, admin, canEditStats = false, is
             works={works} types={types} typeLabel={typeLabel} onOpen={(w) => goToWork(w.id)}
             q={q} setQ={setQ} type={type} setType={setType}
             featuredOnly={featuredOnly} setFeaturedOnly={setFeaturedOnly}
-            initialSeeAll={seeAllView.key} initialSort={seeAllView.sort} restoreWorkId={restoreWorkId}
-            onSeeAllChange={(key, sort) => setSeeAllView((v) => (v.key === key && v.sort === sort ? v : { key, sort }))}
+            initialSeeAll={seeAllView.key} initialSort={seeAllView.sort} initialSeeAllQ={seeAllView.q} restoreWorkId={restoreWorkId}
+            onSeeAllChange={(key, sort, sq) => setSeeAllView((v) => (v.key === key && v.sort === sort && v.q === sq ? v : { key, sort, q: sq }))}
           />
         ) : (
           <>
