@@ -300,7 +300,7 @@ export function VodBrowser({
         <div className="vod-filters">
           <div className="vod-search">
             <Search size={16} />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="جستجو در عنوان، شرح، محور، کمپین، کلیدواژه…" aria-label="جستجو در عنوان، شرح، محور، کمپین و کلیدواژه" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="جستجو در عنوان، شرح و کلیدواژه…" title="جستجو در عنوان، شرح، محور، کمپین و کلیدواژه" aria-label="جستجو در عنوان، شرح، محور، کمپین و کلیدواژه" />
             {q && <button className="x-btn" onClick={() => setQ("")} aria-label="پاک‌کردن جستجو"><X size={14} /></button>}
           </div>
           <FilterDropdown types={usedTypes} type={type} setType={setType}
@@ -331,7 +331,7 @@ export function VodBrowser({
             <div className="vod-search">
               <Search size={16} />
               <input value={seeAllQ} onChange={(e) => setSeeAllQ(e.target.value)}
-                placeholder={`جستجو در ${current.title}: عنوان، شرح، محور، کمپین، کلیدواژه…`} aria-label={`جستجو در ${current.title}`} />
+                placeholder={`جستجو در ${current.title}…`} title="جستجو در عنوان، شرح، محور، کمپین و کلیدواژه" aria-label={`جستجو در ${current.title}`} />
               {seeAllQ && <button className="x-btn" onClick={() => setSeeAllQ("")} aria-label="پاک‌کردن جستجو"><X size={14} /></button>}
             </div>
           </div>
